@@ -1,0 +1,161 @@
+// Note: deliberately no `import Foundation` — the Command Line Tools ship swift-testing without its
+// Foundation cross-import overlay, so importing both fails to build. Darwin is enough here.
+import Darwin
+import Testing
+@testable import RingCore
+
+// MARK: - Geometry
+
+private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
+    let a = angleDegrees * .pi / 180
+    return (radius * sin(a), radius * cos(a)) // dy up
+}
+
+@Suite struct GeometryTests {
+    let m = WheelMetrics.standard
+    let geo = WheelGeometry(childCounts: [2, 0, 3, 0, 0, 0, 0, 1])
+
+    @Test func centerIsSettings() {
+        #expect(geo.hit(dx: 0, dy: 0, openParent: nil) == .center)
+        #expect(geo.hit(dx: 10, dy: -20, openParent: nil) == .center)
+    }
+
+    @Test func eightSlicesClockwiseFromTop() {
+        for i in 0..<8 {
+            let (dx, dy) = point(angleDegrees: Double(i) * 45, radius: 100)
+            #expect(geo.hit(dx: dx, dy: dy, openParent: nil) == .item(i))
+        }
+        // Just either side of the top slice's edges.
+        let (lx, ly) = point(angleDegrees: -22, radius: 100)
+        #expect(geo.hit(dx: lx, dy: ly, openParent: nil) == .item(0))
+        let (rx, ry) = point(angleDegrees: 23, radius: 100)
+        #expect(geo.hit(dx: rx, dy: ry, openParent: nil) == .item(1))
+    }
+
+    @Test func farOutsideCancels() {
+        let (dx, dy) = point(angleDegrees: 45, radius: m.ringOuter + m.cancelSlack + 5)
+        #expect(geo.hit(dx: dx, dy: dy, openParent: nil) == .cancel)
+    }
+
+    @Test func slackBandStillSelectsSlice() {
+        let (dx, dy) = point(angleDegrees: 90, radius: m.ringOuter + 10)
+        #expect(geo.hit(dx: dx, dy: dy, openParent: nil) == .item(2))
+    }
+
+    @Test func childAnglesFanAroundParent() {
+        let angles = geo.childAngles(parent: 2) // 3 children around 90°
+        #expect(angles.count == 3)
+        #expect(abs(angles[1] - .pi / 2) < 1e-9)
+        #expect(abs(angles[0] - (.pi / 2 - m.childSpan)) < 1e-9)
+        // Top slice children wrap around 0.
+        let top = geo.childAngles(parent: 0)
+        #expect(top.allSatisfy { $0 >= 0 && $0 < 2 * .pi })
+    }
+
+    @Test func childrenOnlyWhenParentOpen() {
+        let (dx, dy) = point(angleDegrees: 90 + 34, radius: 200)
+        #expect(geo.hit(dx: dx, dy: dy, openParent: 2) == .child(2, 2))
+        #expect(geo.hit(dx: dx, dy: dy, openParent: nil) == .cancel)
+    }
+
+    @Test func trackerKeepsParentWhileSlidingAlongSubRing() {
+        var t = WheelTracker(geometry: geo)
+        // Go out through slice 2 (90°)...
+        t.update(dx: 0, dy: 0)
+        var (dx, dy) = point(angleDegrees: 90, radius: 100)
+        #expect(t.update(dx: dx, dy: dy) == .item(2))
+        #expect(t.openParent == 2)
+        (dx, dy) = point(angleDegrees: 90, radius: 200)
+        #expect(t.update(dx: dx, dy: dy) == .child(2, 1))
+        // ...then slide sideways along the sub ring, past where slice 3 begins (112.5°).
+        (dx, dy) = point(angleDegrees: 122, radius: 200)
+        #expect(t.update(dx: dx, dy: dy) == .child(2, 2))
+        #expect(t.openParent == 2)
+        // Back to the center closes it.
+        t.update(dx: 0, dy: 0)
+        #expect(t.openParent == nil)
+    }
+
+    @Test func sliceWithoutChildrenOpensNothing() {
+        var t = WheelTracker(geometry: geo)
+        let (dx, dy) = point(angleDegrees: 135, radius: 100)
+        #expect(t.update(dx: dx, dy: dy) == .item(3))
+        #expect(t.openParent == nil)
+    }
+
+    @Test func emptyWheel() {
+        let g = WheelGeometry(childCounts: [])
+        #expect(g.hit(dx: 0, dy: 0, openParent: nil) == .center)
+        #expect(g.hit(dx: 100, dy: 0, openParent: nil) == .cancel)
+    }
+}
+
+// MARK: - Key combos
+
+@Suite struct KeyComboTests {
+    @Test func parsesAndCanonicalizes() throws {
+        let c = try #require(KeyCombo("Shift+CMD+n"))
+        #expect(c.key == "n")
+        #expect(c.modifiers == [.shift, .cmd])
+        #expect(c.string == "shift+cmd+n")
+        #expect(c.display == "⇧⌘N")
+    }
+
+    @Test func namedKeysAndAliases() throws {
+        #expect(try #require(KeyCombo("option+space")).display == "⌥ Space")
+        #expect(try #require(KeyCombo("alt+esc")).key == "escape")
+        #expect(try #require(KeyCombo("cmd++")).key == "+")
+        #expect(try #require(KeyCombo("f13")).modifiers.isEmpty)
+    }
+
+    @Test func rejectsGarbage() {
+        #expect(KeyCombo("") == nil)
+        #expect(KeyCombo("hyper+n") == nil)
+        #expect(KeyCombo("cmd+banana") == nil)
+        #expect(KeyCombo("cmd+") == nil)
+    }
+}
+
+// MARK: - Config
+
+@Suite struct ConfigTests {
+    @Test func defaultConfigRoundTrips() throws {
+        let config = DefaultConfig.config
+        #expect(config.items.count == 8)
+        let decoded = try ConfigFile.decode(ConfigFile.encode(config))
+        #expect(decoded.sameContent(as: config))
+        #expect(decoded.items[0].children.count == 2)
+    }
+
+    @Test func handWrittenJSON() throws {
+        let json = """
+        { "items": [
+            { "label": "Term", "action": { "type": "app", "bundleId": "com.googlecode.iterm2" } },
+            { "label": "Docs", "icon": "sf:book", "action": { "type": "url", "url": "https://example.com" } },
+            { "label": "Group", "children": [ { "label": "Echo", "action": { "type": "shell", "command": "echo hi" } } ] }
+        ] }
+        """
+        let c = try ConfigFile.decode(json: json)
+        #expect(c.hotkey == "option+space")
+        #expect(c.theme == "midnight")
+        #expect(c.items[0].action == .app(bundleId: "com.googlecode.iterm2"))
+        #expect(c.items[1].action == .url("https://example.com", bundleId: nil))
+        #expect(c.items[2].action == .none)
+        #expect(c.items[2].children[0].action == .shell("echo hi"))
+    }
+
+    @Test func clampsItemCounts() throws {
+        let child = WheelItem(label: "c", action: .none)
+        let item = WheelItem(label: "x", action: .none, children: Array(repeating: child, count: 9))
+        let big = RingConfig(items: Array(repeating: item, count: 12))
+        let c = try ConfigFile.decode(ConfigFile.encode(big))
+        #expect(c.items.count == RingConfig.maxItems)
+        #expect(c.items[0].children.count == RingConfig.maxChildren)
+    }
+
+    @Test func convertingActionKeepsApp() {
+        let a = Action.app(bundleId: "x.y")
+        #expect(a.converted(to: .keys) == .keys("", bundleId: "x.y"))
+        #expect(Action.keys("cmd+t", bundleId: "x.y").converted(to: .app) == .app(bundleId: "x.y"))
+    }
+}
