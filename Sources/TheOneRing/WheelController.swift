@@ -55,6 +55,9 @@ final class WheelController {
         tracker = WheelTracker(geometry: ringGeometry(windows: [:]))
         requiredModifiers = NSEvent.ModifierFlags(KeyCombo(config.hotkey)?.modifiers.map(\.eventFlag) ?? [])
         IconCache.shared.preload(config.items)
+        Windows.watch(bundleIds: config.items.compactMap {
+            if case .app(let id) = $0.action, !id.isEmpty { id } else { nil }
+        })
     }
 
     // MARK: Open / close

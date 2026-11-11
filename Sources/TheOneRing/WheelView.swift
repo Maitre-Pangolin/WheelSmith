@@ -214,7 +214,7 @@ struct WheelCanvas: View {
                          tint: selected ? .white : theme.symbol)
             case .window(let w):
                 ZStack(alignment: .topTrailing) {
-                    Image(systemName: w.isMinimized ? "minus.rectangle" : "macwindow")
+                    Image(systemName: w.isMinimized ? "minus.rectangle" : w.isFullScreen ? "arrow.up.left.and.arrow.down.right.square" : "macwindow")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(selected ? .white : theme.symbol)
                         .frame(width: 26, height: 22)

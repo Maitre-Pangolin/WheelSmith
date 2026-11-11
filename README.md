@@ -235,8 +235,15 @@ time. Pointer polling runs only while the wheel is open, so The One Ring uses no
   Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings:
   let go in the center of the wheel, or open The One Ring again from Spotlight. There's a Quit
   button under Settings → General.
-- **A window on another Space** is raised by switching to that Space. macOS has no public way to
-  move windows between Spaces, and some apps don't list windows on other Spaces at all.
+- **Windows on other Spaces** (other desktops, full-screen windows) are listed too, with a full-screen
+  icon for full-screen ones; picking one switches to its Space. macOS's Accessibility API only reports
+  windows on the Spaces you're looking at, so The One Ring remembers each window once it has been on
+  screen (it checks your slices' apps whenever you switch Space or app), and also searches for the
+  others the way window switchers like AltTab do. That search is quick for most apps but can't reach
+  windows of apps that have been running a long time (iTerm and Dia often): those appear once you've
+  visited them after The One Ring started. Both rely on undocumented macOS calls; if a future macOS
+  removes them, only these windows disappear from the ring. Windows can't be moved between Spaces, so
+  Bring here leaves them where they are.
   Full-screen windows can't be moved by Bring here.
 - **Near a screen edge** the wheel shifts inward so the slices stay visible, and the pointer moves
   to its center.

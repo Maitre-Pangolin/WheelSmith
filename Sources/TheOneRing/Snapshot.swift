@@ -54,11 +54,11 @@ enum Snapshot {
         ]
         // Window ring: iTerm (slice 7) with three windows across two displays, hovering the second.
         let dummy = AXUIElementCreateApplication(0)
-        func window(_ title: String, display: Int, minimized: Bool = false) -> WindowInfo {
-            WindowInfo(element: dummy, title: title, frame: .zero, isMinimized: minimized, isFullScreen: false,
-                       displayIndex: display)
+        func window(_ title: String, display: Int, minimized: Bool = false, fullScreen: Bool = false) -> WindowInfo {
+            WindowInfo(element: dummy, pid: 0, windowID: 0, title: title, frame: .zero, isMinimized: minimized,
+                       isFullScreen: fullScreen, onCurrentSpace: !fullScreen, displayIndex: display)
         }
-        let itermWindows = [window("~/perso/TheOneRing", display: 0), window("ssh prod-api", display: 1),
+        let itermWindows = [window("~/perso/TheOneRing", display: 0), window("ssh prod-api", display: 1, fullScreen: true),
                             window("htop", display: 1, minimized: true)]
         let midnight = Theme.named("midnight")
         let windowRing = ZStack {

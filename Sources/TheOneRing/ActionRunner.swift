@@ -46,11 +46,16 @@ enum ActionRunner {
         DispatchQueue.global(qos: .userInitiated).async {
             let windows = Windows.list(bundleId: bundleId, layout: layout).filter { !$0.isMinimized }
             let target = context.bringHere ? windows.first : windows.first { $0.displayIndex == display }
+            var activated = false
             if let target {
                 if context.bringHere { Windows.move(target, toDisplay: display, layout: layout) }
-                Windows.raise(target)
+                activated = Windows.raise(target)
             }
-            DispatchQueue.main.async { activate(bundleId, raising: target, completion: completion) }
+            DispatchQueue.main.async {
+                // A window on another Space is already in front (and its Space shown); a Dock-style
+                // activation now could switch back to the app's last used Space.
+                if activated { completion?() } else { activate(bundleId, raising: target, completion: completion) }
+            }
         }
     }
 
@@ -60,8 +65,9 @@ enum ActionRunner {
             if context.bringHere, let display = context.displayIndex, let layout = context.layout {
                 Windows.move(window, toDisplay: display, layout: layout)
             }
-            Windows.raise(window)
-            DispatchQueue.main.async { activate(bundleId, raising: window) }
+            if !Windows.raise(window) {
+                DispatchQueue.main.async { activate(bundleId, raising: window) }
+            }
         }
     }
 
