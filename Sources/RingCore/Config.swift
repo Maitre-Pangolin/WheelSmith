@@ -127,7 +127,7 @@ extension WheelItem: Codable {
 }
 
 public struct RingConfig: Equatable, Sendable {
-    public static let maxItems = 8
+    public static let maxItems = 10
     public static let maxChildren = 5
 
     /// e.g. "option+space". Hold it to show the wheel, release to run.

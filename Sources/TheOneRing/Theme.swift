@@ -20,7 +20,6 @@ struct Theme: Identifiable {
     let sliceHover: [Color]
     let glow: Color
     let hub: Color
-    let hubHover: Color
     let text: Color
     let subtext: Color
     /// Fill of the sub-action ring.
@@ -43,7 +42,6 @@ struct Theme: Identifiable {
         sliceHover: [Color(red: 0.49, green: 0.36, blue: 1.0), Color(red: 0.18, green: 0.62, blue: 1.0)],
         glow: Color(red: 0.36, green: 0.48, blue: 1.0),
         hub: Color(red: 0.09, green: 0.09, blue: 0.13).opacity(0.92),
-        hubHover: Color(red: 0.16, green: 0.15, blue: 0.24),
         text: .white,
         subtext: .white.opacity(0.55),
         sub: Color(red: 0.07, green: 0.07, blue: 0.11).opacity(0.94),
@@ -60,7 +58,6 @@ struct Theme: Identifiable {
         sliceHover: [Color(red: 1.0, green: 0.52, blue: 0.30), Color(red: 1.0, green: 0.30, blue: 0.45)],
         glow: Color(red: 1.0, green: 0.42, blue: 0.38),
         hub: .white.opacity(0.92),
-        hubHover: Color(red: 1.0, green: 0.95, blue: 0.93),
         text: Color(white: 0.1),
         subtext: Color(white: 0.1).opacity(0.5),
         sub: .white.opacity(0.94),
@@ -77,7 +74,6 @@ struct Theme: Identifiable {
         sliceHover: [Color.white.opacity(0.42), Color.white.opacity(0.22)],
         glow: .white.opacity(0.7),
         hub: .black.opacity(0.28),
-        hubHover: .white.opacity(0.22),
         text: .white,
         subtext: .white.opacity(0.65),
         sub: .black.opacity(0.42),

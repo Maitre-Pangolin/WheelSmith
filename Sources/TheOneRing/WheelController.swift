@@ -25,8 +25,6 @@ final class WheelPanel: NSPanel {
 
 /// Shows the wheel under the cursor on hotkey press, follows the cursor, runs the action on release.
 final class WheelController {
-    var onOpenSettings: (() -> Void)?
-
     let model = WheelModel()
     private let panel: WheelPanel
     private var tracker = WheelTracker(geometry: WheelGeometry(childCounts: []))
@@ -109,8 +107,8 @@ final class WheelController {
         let hit = model.hit
         close()
         switch hit {
-        case .center:
-            onOpenSettings?()
+        case .center, .cancel:
+            break
         case .item(let i) where i < model.items.count:
             let item = model.items[i]
             ActionRunner.run(item.action, context: context(for: item))

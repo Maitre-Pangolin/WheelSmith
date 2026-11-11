@@ -16,8 +16,8 @@ enum Snapshot {
         let states: [(String, String, WheelHit, Int?)] = [
             ("wheel-midnight-center", "midnight", .center, nil),
             ("wheel-midnight-slice", "midnight", .item(7), 7),
-            ("wheel-midnight-sub", "midnight", .child(2, 2), 2),
-            ("wheel-daylight-sub", "daylight", .child(0, 1), 0),
+            ("wheel-midnight-sub", "midnight", .child(3, 2), 3),
+            ("wheel-daylight-sub", "daylight", .child(5, 0), 5),
             ("wheel-glass-slice", "glass", .item(4), 4),
         ]
         for (name, themeId, hit, parent) in states {

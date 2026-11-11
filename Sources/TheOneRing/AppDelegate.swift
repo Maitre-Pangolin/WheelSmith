@@ -21,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store = ConfigStore()
         wheel = WheelController()
         settings = SettingsWindowController(store: store, launchAtLogin: launchAtLogin)
-        wheel.onOpenSettings = { [weak self] in self?.settings.show() }
 
         let hotkeys = HotkeyManager.shared
         hotkeys.onPress = { [weak self] in self?.wheel.open() }

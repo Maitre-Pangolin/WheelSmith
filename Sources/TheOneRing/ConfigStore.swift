@@ -55,7 +55,9 @@ final class ConfigStore: ObservableObject {
         guard let data = try? Data(contentsOf: url), data != lastWritten else { return }
         do {
             let loaded = try ConfigFile.decode(data)
-            lastWritten = data
+            // Applying it below triggers the autosave; mark its encoding as already written so a reload
+            // never writes the file back (that would reformat it, and drop anything beyond the limits).
+            lastWritten = try? ConfigFile.encode(loaded)
             lastError = nil
             if !loaded.sameContent(as: config) { config = loaded }
         } catch {
@@ -63,19 +65,43 @@ final class ConfigStore: ObservableObject {
         }
     }
 
-    /// Watches the directory (editors save atomically by renaming, which a file watch would miss).
+    /// Watches the directory, for editors that save by writing a new file and renaming it over the old
+    /// one, and the file itself, for tools that rewrite it in place.
     private func startWatching() {
         let dir = url.deletingLastPathComponent().path
         let fd = open(dir, O_EVTONLY)
         guard fd >= 0 else { return }
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename], queue: .main)
         source.setEventHandler { [weak self] in
-            // Let the editor finish its write/rename dance.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self?.reloadFromDisk() }
+            // Let the editor finish its write/rename dance; the file may also be a new one now.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.watchFile()
+                self?.reloadFromDisk()
+            }
         }
         source.setCancelHandler { close(fd) }
         source.resume()
         watcher = source
+        watchFile()
+    }
+
+    private var fileWatcher: DispatchSourceFileSystemObject?
+    private var watchedInode: UInt64?
+
+    private func watchFile() {
+        guard let inode = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.systemFileNumber] as? UInt64,
+              inode != watchedInode else { return }
+        fileWatcher?.cancel()
+        let fd = open(url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend], queue: .main)
+        source.setEventHandler { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self?.reloadFromDisk() }
+        }
+        source.setCancelHandler { close(fd) }
+        source.resume()
+        fileWatcher = source
+        watchedInode = inode
     }
 
     private static func describe(_ error: Error) -> String {

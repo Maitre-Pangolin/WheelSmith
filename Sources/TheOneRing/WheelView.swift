@@ -37,7 +37,6 @@ struct WheelCanvas: View {
     let openParent: Int?
     var visible = true
     var opaqueBackdrop = false
-    var showsHubHint = true
     var windows: [Int: [WindowInfo]] = [:]
     var hereDisplay: Int?
     var displayCount = 1
@@ -161,12 +160,11 @@ struct WheelCanvas: View {
 
     private var hub: some View {
         let d = metrics.hubRadius * 2
-        let onCenter = hit == .center
+        // The center is a dead zone: letting go there closes the wheel, like letting go outside it.
         return ZStack {
             Circle()
-                .fill(onCenter ? theme.hubHover : theme.hub)
-                .overlay(Circle().strokeBorder(onCenter ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover, startPoint: .top, endPoint: .bottom))
-                                                        : AnyShapeStyle(theme.stroke), lineWidth: onCenter ? 1.5 : 1))
+                .fill(theme.hub)
+                .overlay(Circle().strokeBorder(theme.stroke, lineWidth: 1))
             hubContent
                 .padding(8)
                 .frame(width: d, height: d)
@@ -178,13 +176,7 @@ struct WheelCanvas: View {
     private var hubContent: some View {
         switch hit {
         case .center:
-            if showsHubHint {
-                VStack(spacing: 2) {
-                    Image(systemName: "gearshape.fill").font(.system(size: 15, weight: .semibold))
-                    Text("Settings").font(.system(size: 9, weight: .semibold, design: .rounded))
-                }
-                .foregroundStyle(theme.subtext)
-            }
+            EmptyView()
         case .item(let i) where i < items.count:
             hubLabel(items[i].label, caption: nil)
         case .child(let p, let j) where p < items.count && j < ring(p).count:

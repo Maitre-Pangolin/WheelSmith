@@ -331,7 +331,7 @@ struct ThemeCard: View {
                                              : [Color(red: 0.96, green: 0.92, blue: 1.0), Color(red: 0.82, green: 0.9, blue: 1.0)],
                                              startPoint: .top, endPoint: .bottom))
                     WheelCanvas(items: items, theme: theme, hit: .item(0), openParent: nil,
-                                opaqueBackdrop: true, showsHubHint: false)
+                                opaqueBackdrop: true)
                         .scaleEffect(scale * 1.6)
                         .frame(width: 130, height: 110)
                         .allowsHitTesting(false)

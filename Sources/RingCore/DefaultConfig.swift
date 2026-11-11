@@ -5,11 +5,13 @@ public enum DefaultConfig {
         public static let dia = "company.thebrowser.dia"
         public static let slack = "com.tinyspeck.slackmacgap"
         public static let outlook = "com.microsoft.Outlook"
-        public static let notes = "com.apple.Notes"
+        /// Ostraka, installed as a Chrome web app.
+        public static let ostraka = "com.google.Chrome.app.dekblognmjndkkfcbifaddddgaplkgbn"
         public static let finder = "com.apple.finder"
         public static let claude = "com.anthropic.claudefordesktop"
         public static let cursor = "com.todesktop.230313mzl4w4u92"
         public static let iterm = "com.googlecode.iterm2"
+        public static let figma = "com.figma.Desktop"
     }
 
     private static func keys(_ label: String, _ symbol: String, _ combo: String, _ app: String) -> WheelItem {
@@ -24,6 +26,7 @@ public enum DefaultConfig {
                 keys("New tab", "plus.square.on.square", "cmd+t", B.dia),
                 keys("New window", "macwindow.badge.plus", "cmd+n", B.dia),
             ]),
+            WheelItem(label: "Ostraka", action: .app(bundleId: B.ostraka)),
             WheelItem(label: "Slack", action: .app(bundleId: B.slack), children: [
                 keys("Jump to…", "magnifyingglass", "cmd+k", B.slack),
                 keys("Threads", "bubble.left.and.bubble.right", "cmd+shift+t", B.slack),
@@ -33,13 +36,20 @@ public enum DefaultConfig {
                 keys("Mail", "tray", "cmd+1", B.outlook),
                 keys("Calendar", "calendar", "cmd+2", B.outlook),
             ]),
-            WheelItem(label: "Notes", action: .app(bundleId: B.notes), children: [
-                keys("New note", "square.and.pencil", "cmd+n", B.notes),
-                keys("Search", "magnifyingglass", "cmd+option+f", B.notes),
-            ]),
             WheelItem(label: "Finder", action: .app(bundleId: B.finder), children: [
                 WheelItem(label: "Downloads", icon: "sf:arrow.down.circle", action: .url("~/Downloads", bundleId: nil)),
                 WheelItem(label: "Home", icon: "sf:house", action: .url("~", bundleId: nil)),
+            ]),
+            // macOS's own screenshot shortcuts: saved where you've set, no extra permission needed.
+            WheelItem(label: "Screenshot", icon: "sf:camera.viewfinder", action: .keys("cmd+shift+4", bundleId: nil), children: [
+                WheelItem(label: "Zone", icon: "sf:rectangle.dashed", action: .keys("cmd+shift+4", bundleId: nil)),
+                WheelItem(label: "Full screen", icon: "sf:display", action: .keys("cmd+shift+3", bundleId: nil)),
+                WheelItem(label: "Video", icon: "sf:record.circle", action: .keys("cmd+shift+5", bundleId: nil)),
+            ]),
+            WheelItem(label: "Figma", action: .app(bundleId: B.figma)),
+            WheelItem(label: "iTerm", action: .app(bundleId: B.iterm), children: [
+                keys("New window", "macwindow.badge.plus", "cmd+n", B.iterm),
+                keys("New tab", "plus.square.on.square", "cmd+t", B.iterm),
             ]),
             WheelItem(label: "Claude", action: .app(bundleId: B.claude), children: [
                 keys("New chat", "plus.bubble", "cmd+n", B.claude),
@@ -47,10 +57,6 @@ public enum DefaultConfig {
             WheelItem(label: "Cursor", action: .app(bundleId: B.cursor), children: [
                 keys("New window", "macwindow.badge.plus", "cmd+shift+n", B.cursor),
                 keys("Open recent", "clock.arrow.circlepath", "ctrl+r", B.cursor),
-            ]),
-            WheelItem(label: "iTerm", action: .app(bundleId: B.iterm), children: [
-                keys("New window", "macwindow.badge.plus", "cmd+n", B.iterm),
-                keys("New tab", "plus.square.on.square", "cmd+t", B.iterm),
             ]),
         ])
     }

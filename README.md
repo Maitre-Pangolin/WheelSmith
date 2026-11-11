@@ -4,14 +4,16 @@ A radial quick-action wheel for macOS. Hold **⌥ Space** anywhere and a wheel p
 cursor. Point at a slice and let go to jump to that app or run its action.
 
 ```
-            Dia
-   iTerm           Slack
-Cursor     ( ⚙ )      Outlook        ← let go in the center = Settings
-   Claude          Notes                let go past the edge / Esc = cancel
-          Finder
+               Dia
+      Cursor         Ostraka
+  Claude                 Slack
+                ( )                  ← let go in the center, past the edge, or press Esc = cancel
+  iTerm                  Outlook
+       Figma         Finder
+            Screenshot
 ```
 
-- **Up to 8 slices**, clockwise from the top. Each can have **up to 5 sub-actions**. These fan out
+- **Up to 10 slices**, clockwise from the top. Each can have **up to 5 sub-actions**. These fan out
   in an outer ring when you hover the slice: keep moving outwards to pick one. Letting go on the
   slice itself runs the slice's own action.
 - **Actions:**
@@ -34,7 +36,10 @@ Cursor     ( ⚙ )      Outlook        ← let go in the center = Settings
   The One Ring reads that app's menu bar and lists every command with its shortcut. Search, tick
   up to 5, and each becomes a sub-action with a matching icon. See [Where sub-actions come
   from](#where-sub-actions-come-from).
-- **Visual Settings window:** let go in the center of the wheel, or use the ◎ menu-bar icon. Click
+- **Screenshot** slice (default): area, full screen, or the ⌘⇧5 toolbar for video. It uses macOS's
+  own shortcuts, so captures land where you've set and no extra permission is needed.
+- **Visual Settings window:** use the ◎ menu-bar icon, or open The One Ring again (Spotlight,
+  Finder) while it's running. Click
   slices on the live preview to edit them. Everything is also in a plain JSON file that reloads
   live.
 - **Themes:** Midnight (default), Daylight and Liquid Glass. Every color lives in `Theme.swift`, so
@@ -224,6 +229,7 @@ time. Pointer polling runs only while the wheel is open, so The One Ring uses no
 
 ## Troubleshooting
 
+
 - **Nothing happens on ⌥ Space.** Another app may own that shortcut (Raycast, ChatGPT and some
   launchers use it), and the ◎ menu shows a ⚠︎ when registration fails. Pick another hotkey in
   Settings → General, or free it up in the other app.
@@ -232,8 +238,8 @@ time. Pointer polling runs only while the wheel is open, so The One Ring uses no
   Settings and choose it again.
 - **No ◎ icon in the menu bar.** On notched MacBooks a full menu bar pushes the left-most
   icons, the newest ones, off-screen. To fix it, turn off icons you don't need in *System
-  Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings:
-  let go in the center of the wheel, or open The One Ring again from Spotlight. There's a Quit
+  Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings by
+  opening The One Ring again from Spotlight. There's a Quit
   button under Settings → General.
 - **Windows on other Spaces** (other desktops, full-screen windows) are listed too, with a full-screen
   icon for full-screen ones; picking one switches to its Space. macOS's Accessibility API only reports

@@ -15,7 +15,7 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
     let m = WheelMetrics.standard
     let geo = WheelGeometry(childCounts: [2, 0, 3, 0, 0, 0, 0, 1])
 
-    @Test func centerIsSettings() {
+    @Test func centerIsDeadZone() {
         #expect(geo.hit(dx: 0, dy: 0, openParent: nil) == .center)
         #expect(geo.hit(dx: 10, dy: -20, openParent: nil) == .center)
     }
@@ -30,6 +30,14 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(geo.hit(dx: lx, dy: ly, openParent: nil) == .item(0))
         let (rx, ry) = point(angleDegrees: 23, radius: 100)
         #expect(geo.hit(dx: rx, dy: ry, openParent: nil) == .item(1))
+    }
+
+    @Test func tenSlicesClockwiseFromTop() {
+        let ten = WheelGeometry(childCounts: Array(repeating: 0, count: 10))
+        for i in 0..<10 {
+            let (dx, dy) = point(angleDegrees: Double(i) * 36, radius: 100)
+            #expect(ten.hit(dx: dx, dy: dy, openParent: nil) == .item(i))
+        }
     }
 
     @Test func farOutsideCancels() {
@@ -121,7 +129,7 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
 @Suite struct ConfigTests {
     @Test func defaultConfigRoundTrips() throws {
         let config = DefaultConfig.config
-        #expect(config.items.count == 8)
+        #expect(config.items.count == RingConfig.maxItems)
         let decoded = try ConfigFile.decode(ConfigFile.encode(config))
         #expect(decoded.sameContent(as: config))
         #expect(decoded.items[0].children.count == 2)
