@@ -11,6 +11,8 @@ enum ActionRunner {
             openURL(text, with: bundleId)
         case .keys(let combo, let bundleId):
             sendShortcut(combo, to: bundleId)
+        case .menu(let path, let bundleId):
+            pressMenu(path, in: bundleId)
         case .shell(let command):
             runShell(command)
         case .none:
@@ -82,7 +84,36 @@ enum ActionRunner {
             requestAccessibility()
             return
         }
-        let send = { post(code: code, flags: CGEventFlags(combo.modifiers.map(\.cgFlag))) }
+        whenReady(bundleId) { post(code: code, flags: CGEventFlags(combo.modifiers.map(\.cgFlag))) }
+    }
+
+    // MARK: Menu items
+
+    /// Brings the app forward, then clicks the menu item at `path` (e.g. ["Shell", "New Tab"]).
+    static func pressMenu(_ path: [String], in bundleId: String?) {
+        guard !path.isEmpty else { NSSound.beep(); return }
+        guard hasAccessibility else {
+            requestAccessibility()
+            return
+        }
+        whenReady(bundleId) {
+            let app = bundleId.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
+                ?? NSWorkspace.shared.frontmostApplication
+            guard let pid = app?.processIdentifier else { NSSound.beep(); return }
+            // AX calls block until the app answers (or a dialog it opens returns): keep them off the main thread.
+            DispatchQueue.global(qos: .userInitiated).async {
+                if !MenuBar.press(path: path, pid: pid) {
+                    DispatchQueue.main.async {
+                        NSLog("TheOneRing: menu item not found: \(MenuPath.display(path))")
+                        NSSound.beep()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Runs `body` once `bundleId` (if any) is frontmost and the hotkey's modifiers are up.
+    private static func whenReady(_ bundleId: String?, then body: @escaping () -> Void) {
         if let bundleId, NSWorkspace.shared.frontmostApplication?.bundleIdentifier != bundleId {
             let wasRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
             focus(bundleId)
@@ -90,10 +121,10 @@ enum ActionRunner {
                 NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId && modifiersReleased
             }) {
                 // Give a freshly launched app a moment to put up its first window.
-                DispatchQueue.main.asyncAfter(deadline: .now() + (wasRunning ? 0.05 : 0.6), execute: send)
+                DispatchQueue.main.asyncAfter(deadline: .now() + (wasRunning ? 0.05 : 0.6), execute: body)
             }
         } else {
-            waitUntil(timeout: 1, { modifiersReleased }, then: send)
+            waitUntil(timeout: 1, { modifiersReleased }, then: body)
         }
     }
 
@@ -115,7 +146,7 @@ enum ActionRunner {
         let deadline = Date().addingTimeInterval(timeout)
         func check() {
             if condition() { then(); return }
-            guard Date() < deadline else { NSLog("TheOneRing: timed out waiting to send shortcut"); return }
+            guard Date() < deadline else { NSLog("TheOneRing: timed out waiting for the target app"); return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03, execute: check)
         }
         check()

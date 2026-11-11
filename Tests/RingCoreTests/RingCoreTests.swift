@@ -159,3 +159,51 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(Action.keys("cmd+t", bundleId: "x.y").converted(to: .app) == .app(bundleId: "x.y"))
     }
 }
+
+// MARK: - Menu actions
+
+@Suite struct MenuActionTests {
+    @Test func menuActionRoundTrips() throws {
+        let json = """
+        { "items": [ { "label": "iTerm", "action": { "type": "app", "bundleId": "com.googlecode.iterm2" },
+          "children": [ { "label": "New Tab", "action": { "type": "menu", "menu": ["Shell", "New Tab"], "bundleId": "com.googlecode.iterm2" } } ] } ] }
+        """
+        let c = try ConfigFile.decode(json: json)
+        let action = c.items[0].children[0].action
+        #expect(action == .menu(["Shell", "New Tab"], bundleId: "com.googlecode.iterm2"))
+        #expect(action.kind == .menu)
+        #expect(action.bundleId == "com.googlecode.iterm2")
+        #expect(try ConfigFile.decode(ConfigFile.encode(c)).sameContent(as: c))
+    }
+
+    @Test func convertingToMenuKeepsApp() {
+        #expect(Action.keys("cmd+t", bundleId: "x.y").converted(to: .menu) == .menu([], bundleId: "x.y"))
+        #expect(Action.menu(["File", "New"], bundleId: "x.y").converted(to: .app) == .app(bundleId: "x.y"))
+    }
+
+    @Test func titlesMatchLoosely() {
+        #expect(MenuPath.matches("New Window…", "new window"))
+        #expect(MenuPath.matches("Open Recent...", "Open  Recent"))
+        #expect(!MenuPath.matches("New Tab", "New Window"))
+    }
+
+    @Test func labelsAndDisplay() {
+        #expect(MenuPath.label(for: ["File", "New Window…"]) == "New Window")
+        #expect(MenuPath.display(["Shell", "Split", "Vertically"]) == "Shell › Split › Vertically")
+    }
+
+    @Test func searchNeedsEveryWord() {
+        #expect(MenuPath.search("new tab", path: ["Shell", "New Tab"], shortcut: "⌘T"))
+        #expect(MenuPath.search("shell tab", path: ["Shell", "New Tab"], shortcut: nil))
+        #expect(!MenuPath.search("window tab", path: ["Shell", "New Tab"], shortcut: nil))
+        #expect(MenuPath.search("⌘t", path: ["Shell", "New Tab"], shortcut: "⌘T"))
+        #expect(MenuPath.search("  ", path: ["x"], shortcut: nil))
+    }
+
+    @Test func symbolGuesses() {
+        #expect(MenuPath.symbol(for: ["Shell", "New Tab"]) == "plus.square.on.square")
+        #expect(MenuPath.symbol(for: ["File", "New Window…"]) == "macwindow.badge.plus")
+        #expect(MenuPath.symbol(for: ["Edit", "Find", "Find…"]) == "magnifyingglass")
+        #expect(MenuPath.symbol(for: ["Help", "Something Odd"]) == "filemenu.and.selection")
+    }
+}

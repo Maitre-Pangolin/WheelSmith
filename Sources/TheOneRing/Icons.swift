@@ -20,7 +20,8 @@ final class IconCache {
         switch item.action {
         case .app(let bundleId):
             if let img = appIcon(bundleId) { return .image(img) }
-        case .keys(_, let bundleId?) where !isChild, .url(_, let bundleId?) where !isChild:
+        case .keys(_, let bundleId?) where !isChild, .url(_, let bundleId?) where !isChild,
+             .menu(_, let bundleId?) where !isChild:
             if let img = appIcon(bundleId) { return .image(img) }
         default: break
         }
@@ -32,6 +33,7 @@ final class IconCache {
         case .app: "app.dashed"
         case .url: "link"
         case .keys: "command"
+        case .menu: "filemenu.and.selection"
         case .shell: "terminal"
         case .none: "circle.dotted"
         }

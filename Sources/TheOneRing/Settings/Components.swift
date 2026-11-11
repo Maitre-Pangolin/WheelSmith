@@ -274,8 +274,14 @@ struct GeneralPane: View {
                         if !accessibility { Button("Grant…") { ActionRunner.requestAccessibility() } }
                     }
                 }
-                Text("Only needed for Shortcut actions. App, URL and Shell actions work without it.")
+                Text("Only needed for Menu and Shortcut actions. App, URL and Shell actions work without it.")
                     .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Text("Can't see the ◎ icon? A full menu bar hides icons behind the notch. Open The One Ring again from Spotlight to get back here.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Quit The One Ring") { NSApp.terminate(nil) }
+                }
             }
 
             Section("Config file") {

@@ -17,9 +17,16 @@ Cursor     ( ⚙ )      Outlook        ← let go in the center = Settings
 - **Actions:**
   - **App:** focus the app, launching it if needed. Behaves like a Dock click.
   - **URL:** open a URL, deep link (`slack://…`) or file path, optionally in a chosen app.
+  - **Menu:** focus an app, then click one of its menu-bar items (for example iTerm › Shell ›
+    New Tab). This is the most reliable kind of sub-action: it needs no keyboard shortcut and
+    ignores your keyboard layout.
   - **Shortcut:** focus an app, then send a keyboard shortcut (for example ⌘T in iTerm).
   - **Shell:** run a command.
   - **None:** for a slice that only groups sub-actions.
+- **Discover sub-actions from menus:** select a slice in Settings and click **Add from … menus**.
+  The One Ring reads that app's menu bar and lists every command with its shortcut. Search, tick
+  up to 5, and each becomes a sub-action with a matching icon. See [Where sub-actions come
+  from](#where-sub-actions-come-from).
 - **Visual Settings window:** let go in the center of the wheel, or use the ◎ menu-bar icon. Click
   slices on the live preview to edit them. Everything is also in a plain JSON file that reloads
   live.
@@ -35,16 +42,27 @@ Cursor     ( ⚙ )      Outlook        ← let go in the center = Settings
 
 ## Install (runs at login)
 
+First, once per Mac, create a local signing certificate. This keeps the Accessibility permission
+across reinstalls (see [Code signing](#code-signing)):
+
+```bash
+./scripts/setup-signing.sh
+```
+
+Then install:
+
 ```bash
 ./scripts/install.sh
 ```
 
 This script:
-1. Builds a release `TheOneRing.app` (signed ad-hoc).
+1. Builds a release `TheOneRing.app`, signed with that certificate (or ad-hoc if you skipped the
+   setup).
 2. Copies it to `~/Applications/TheOneRing.app`.
 3. Registers `~/Library/LaunchAgents/dev.theonering.app.plist`, which starts it now and at every login.
 
-No `sudo` is needed. Re-run the script to upgrade after changing code.
+No `sudo` is needed. Re-run `install.sh` to upgrade after changing code: it rebuilds, replaces
+the app and restarts it. Your config isn't touched.
 
 To remove it (your config stays in `~/.config/theonering`):
 
@@ -77,10 +95,11 @@ swift run TheOneRing --snapshot /tmp/theonering-shots
 ```
 
 Run the unit tests (geometry, hit-testing, key parsing, config). With only the Command Line Tools
-active, `swift test` builds the tests but doesn't run them, so point it at Xcode:
+active, `swift test` builds the tests but doesn't run them, so point it at Xcode. Use a separate
+build folder, because the two toolchains' compiled modules can't be mixed:
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --scratch-path .build-xcode
 ```
 
 ## Permissions
@@ -88,12 +107,31 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 | Feature | Permission |
 |---|---|
 | Hotkey, wheel, App / URL / Shell actions | **None.** The hotkey uses Carbon `RegisterEventHotKey`, and the pointer is read by polling. |
-| **Shortcut** actions (sending ⌘T etc.) | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
+| **Menu** and **Shortcut** actions, and **Add from menus** | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
 
-With ad-hoc signing, macOS ties the Accessibility grant to the exact binary. After a rebuild you
-may need to toggle The One Ring off and on again in *System Settings → Privacy & Security →
-Accessibility*. If you have an Apple Development certificate, build with
-`SIGN_IDENTITY="Apple Development: …" ./scripts/install.sh` and the grant survives rebuilds.
+### Code signing
+
+macOS remembers the Accessibility permission per *signing identity*. With ad-hoc signing, every
+build counts as a new app, so you'd have to re-grant after each reinstall.
+`./scripts/setup-signing.sh` fixes this once and for all:
+
+- It creates a self-signed certificate, **TheOneRing Local Signing**, in your login keychain.
+- It trusts that certificate for code signing only. macOS asks for your password here.
+- `build.sh` and `install.sh` then use it automatically.
+
+After setting it up, install and grant Accessibility one last time; later reinstalls keep it.
+The first build may ask whether `codesign` can use the key: click **Always Allow**.
+
+`build.sh` picks a signing identity in this order:
+
+| Order | Identity | When it's used |
+|---|---|---|
+| 1 | `SIGN_IDENTITY="…"` | Set it to use, for example, an "Apple Development: …" certificate |
+| 2 | TheOneRing Local Signing | Created by `setup-signing.sh` |
+| 3 | Ad-hoc | Fallback; a hint is printed |
+
+To remove the certificate: Keychain Access → login → My Certificates → delete "TheOneRing Local
+Signing".
 
 ## Configuration
 
@@ -110,8 +148,10 @@ menu bar.
       "label": "iTerm",
       "action": { "type": "app", "bundleId": "com.googlecode.iterm2" },
       "children": [                  // ≤ 5
-        { "label": "New tab", "icon": "sf:plus.square.on.square",
-          "action": { "type": "keys", "keys": "cmd+t", "bundleId": "com.googlecode.iterm2" } }
+        { "label": "New Tab", "icon": "sf:plus.square.on.square",
+          "action": { "type": "menu", "menu": ["Shell", "New Tab"], "bundleId": "com.googlecode.iterm2" } },
+        { "label": "Clear", "icon": "sf:eraser",
+          "action": { "type": "keys", "keys": "cmd+k", "bundleId": "com.googlecode.iterm2" } }
       ]
     },
     { "label": "Docs", "icon": "sf:book",
@@ -126,6 +166,26 @@ menu bar.
 [SF Symbol](https://developer.apple.com/sf-symbols/), or give a path to an image. To find an app's
 bundle ID, run `osascript -e 'id of app "Slack"'`.
 
+Menu titles match loosely: case, extra spaces and a trailing `…` are ignored.
+
+## Where sub-actions come from
+
+macOS has no single "quick actions" list that every app publishes. Apps make their actions
+available in a few separate places:
+
+| Source | What it gives | Used here |
+|---|---|---|
+| **Menu bar**, via Accessibility | Every command of every app, with its shortcut | ✅ **Add from menus** and the Menu action |
+| Keyboard shortcuts | Whatever the app binds | ✅ Shortcut action |
+| URL schemes (`slack://…`) | Deep links, documented per app | ✅ URL action |
+| Shortcuts app (App Intents) | Actions apps offer to Shortcuts | Not yet (could run your shortcuts via `shortcuts run`) |
+| AppleScript | Full scripting, different for every app | Use a Shell action with `osascript` |
+
+The menu bar is the one source every app shares, so it's the default for discovering
+sub-actions. An app only has menus while it's running; the browser offers to launch it in the
+background first. Greyed-out items are commands the app has disabled right now (for example
+when no window is open), and they may work later.
+
 ## How it works
 
 ```
@@ -134,16 +194,18 @@ Sources/
     Config.swift       JSON model: RingConfig → WheelItem → Action
     WheelGeometry.swift  angles, rings, hit-testing, sub-ring "sticky parent" tracking
     KeyCombo.swift     "cmd+shift+n" parsing / display
-  The One Ring/                the app
+    MenuPath.swift     menu title matching, search, icon guessing
+  TheOneRing/          the app
     AppDelegate.swift  menu-bar item, wiring
     HotkeyManager.swift  Carbon hotkey press/release (+ Esc while open)
     WheelController.swift  overlay NSPanel, 120 Hz pointer tracking while open, runs actions on release
     WheelView.swift    SwiftUI drawing (slices, sub-ring, hub, backdrop)
     Theme.swift        all colors / materials
-    ActionRunner.swift app focus, URLs, shell, synthesized shortcuts
+    ActionRunner.swift app focus, URLs, shell, synthesized shortcuts, menu clicks
+    MenuBar.swift      reads and clicks other apps' menu bars (Accessibility API)
     ConfigStore.swift  load / debounced save / live file watching
     LaunchAtLogin.swift  LaunchAgent toggle
-    Settings/          visual editor
+    Settings/          visual editor, including the menu browser sheet
 ```
 
 **Speed:** The One Ring is always resident. The overlay panel is built and rendered once at launch, so
@@ -155,14 +217,21 @@ time. Pointer polling runs only while the wheel is open, so The One Ring uses no
 - **Nothing happens on ⌥ Space.** Another app may own that shortcut (Raycast, ChatGPT and some
   launchers use it), and the ◎ menu shows a ⚠︎ when registration fails. Pick another hotkey in
   Settings → General, or free it up in the other app.
-- **A shortcut sub-action does nothing.** Grant Accessibility (see Permissions). Check that the
-  shortcut exists in that app.
+- **A Menu or Shortcut sub-action does nothing** (you hear a beep). Grant Accessibility (see
+  Permissions). For Menu actions, the app may have renamed the item: open the sub-action in
+  Settings and choose it again.
+- **No ◎ icon in the menu bar.** On notched MacBooks a full menu bar pushes the left-most
+  icons, the newest ones, off-screen. To fix it, turn off icons you don't need in *System
+  Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings:
+  let go in the center of the wheel, or open The One Ring again from Spotlight. There's a Quit
+  button under Settings → General.
 - **Near a screen edge** the wheel shifts inward so the slices stay visible, and the pointer moves
   to its center.
 
 ## Ideas / next steps
 
 - Mouse trigger (for example a middle-click hold) as an alternative to the hotkey
+- Run Shortcuts-app shortcuts as actions (with a picker fed by `shortcuts list`)
 - Per-app wheels (different slices depending on the frontmost app)
 - Window actions (move/resize the focused window to halves or other displays)
 - App icon and a signed, notarized build

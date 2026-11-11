@@ -6,6 +6,9 @@ public enum Action: Equatable, Sendable {
     case app(bundleId: String)
     /// Open a URL / file path, optionally with a specific app.
     case url(String, bundleId: String?)
+    /// Click an item in the app's menu bar, e.g. ["Shell", "New Tab"]. Focuses the app first.
+    /// More robust than `keys`: works without a shortcut and on any keyboard layout. Needs Accessibility.
+    case menu([String], bundleId: String?)
     /// Send a keyboard shortcut, optionally focusing an app first. Needs Accessibility permission.
     case keys(String, bundleId: String?)
     /// Run a shell command with `/bin/zsh -lc`.
@@ -14,12 +17,13 @@ public enum Action: Equatable, Sendable {
     case none
 
     public enum Kind: String, CaseIterable, Codable, Sendable {
-        case app, url, keys, shell, none
+        case app, menu, keys, url, shell, none
     }
 
     public var kind: Kind {
         switch self {
         case .app: .app
+        case .menu: .menu
         case .url: .url
         case .keys: .keys
         case .shell: .shell
@@ -30,7 +34,7 @@ public enum Action: Equatable, Sendable {
     public var bundleId: String? {
         switch self {
         case .app(let b): b
-        case .url(_, let b), .keys(_, let b): b
+        case .url(_, let b), .keys(_, let b), .menu(_, let b): b
         case .shell, .none: nil
         }
     }
@@ -42,6 +46,7 @@ public enum Action: Equatable, Sendable {
         case .app: return .app(bundleId: bundleId ?? "")
         case .url: return .url("", bundleId: nil)
         case .keys: return .keys("", bundleId: bundleId)
+        case .menu: return .menu([], bundleId: bundleId)
         case .shell: return .shell("")
         case .none: return .none
         }
@@ -49,7 +54,7 @@ public enum Action: Equatable, Sendable {
 }
 
 extension Action: Codable {
-    private enum CodingKeys: String, CodingKey { case type, bundleId, url, keys, command }
+    private enum CodingKeys: String, CodingKey { case type, bundleId, url, keys, menu, command }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -57,6 +62,7 @@ extension Action: Codable {
         case .app: self = .app(bundleId: try c.decode(String.self, forKey: .bundleId))
         case .url: self = .url(try c.decode(String.self, forKey: .url), bundleId: try c.decodeIfPresent(String.self, forKey: .bundleId))
         case .keys: self = .keys(try c.decode(String.self, forKey: .keys), bundleId: try c.decodeIfPresent(String.self, forKey: .bundleId))
+        case .menu: self = .menu(try c.decode([String].self, forKey: .menu), bundleId: try c.decodeIfPresent(String.self, forKey: .bundleId))
         case .shell: self = .shell(try c.decode(String.self, forKey: .command))
         case .none: self = .none
         }
@@ -69,6 +75,7 @@ extension Action: Codable {
         case .app(let b): try c.encode(b, forKey: .bundleId)
         case .url(let u, let b): try c.encode(u, forKey: .url); try c.encodeIfPresent(b, forKey: .bundleId)
         case .keys(let k, let b): try c.encode(k, forKey: .keys); try c.encodeIfPresent(b, forKey: .bundleId)
+        case .menu(let path, let b): try c.encode(path, forKey: .menu); try c.encodeIfPresent(b, forKey: .bundleId)
         case .shell(let cmd): try c.encode(cmd, forKey: .command)
         case .none: break
         }

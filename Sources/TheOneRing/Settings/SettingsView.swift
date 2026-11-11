@@ -260,7 +260,7 @@ struct ActionsPane: View {
     private func addChild() {
         guard let path = selectedPath else { return }
         let parent = store.config.items[path.item]
-        let child = WheelItem(label: "New action", action: .keys("", bundleId: parent.action.bundleId))
+        let child = WheelItem(label: "New action", action: .menu([], bundleId: parent.action.bundleId))
         store.config.items[path.item].children.append(child)
         selection = .child(parent.id, child.id)
     }
@@ -316,6 +316,7 @@ struct SliceRow: View {
         case .app: return ""
         case .url: return "URL"
         case .keys(let k, _): return KeyCombo(k)?.display ?? "⌨︎"
+        case .menu: return "Menu"
         case .shell: return "sh"
         case .none: return ""
         }
@@ -328,6 +329,8 @@ struct ItemEditor: View {
     @Binding var item: WheelItem
     let isChild: Bool
     let parentLabel: String?
+    @State private var addingFromMenus = false
+    @State private var pickingMenuItem = false
 
     var body: some View {
         Form {
@@ -362,18 +365,64 @@ struct ItemEditor: View {
             }
 
             if !isChild {
-                Section {
-                    Label {
-                        Text("\(item.children.count) of \(RingConfig.maxChildren) sub-actions. They fan out around this slice when you hover it; letting go on the slice itself runs the action above. Add one with ↳ under the list.")
-                    } icon: {
-                        Image(systemName: "circle.circle")
+                Section("Sub-actions") {
+                    HStack {
+                        Button {
+                            addingFromMenus = true
+                        } label: {
+                            Label("Add from \(appName ?? "app") menus…", systemImage: "filemenu.and.selection")
+                        }
+                        .disabled(appBundleId == nil || item.children.count >= RingConfig.maxChildren)
+                        Spacer()
+                        Text("\(item.children.count) of \(RingConfig.maxChildren)")
+                            .foregroundStyle(.secondary)
                     }
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    Text(appBundleId == nil
+                         ? "Choose an app above to browse its menu commands."
+                         : "Pick commands from \(appName ?? "the app")'s menu bar. They fan out around this slice when you hover it; letting go on the slice itself runs the action above.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $addingFromMenus) {
+            if let appBundleId {
+                MenuBrowserSheet(bundleId: appBundleId,
+                                 mode: .addMany(limit: RingConfig.maxChildren - item.children.count),
+                                 onDone: addChildren)
+            }
+        }
+        .sheet(isPresented: $pickingMenuItem) {
+            if let appBundleId {
+                MenuBrowserSheet(bundleId: appBundleId, mode: .pickOne, onDone: useMenuItem)
+            }
+        }
+    }
+
+    private var appBundleId: String? {
+        guard let id = item.action.bundleId, !id.isEmpty else { return nil }
+        return id
+    }
+
+    private var appName: String? { appBundleId.flatMap(AppCatalog.shared.name(for:)) }
+
+    private func addChildren(_ commands: [MenuCommand]) {
+        let room = RingConfig.maxChildren - item.children.count
+        for command in commands.prefix(room) {
+            item.children.append(WheelItem(label: MenuPath.label(for: command.path),
+                                           icon: "sf:" + MenuPath.symbol(for: command.path),
+                                           action: .menu(command.path, bundleId: appBundleId)))
+        }
+    }
+
+    private func useMenuItem(_ commands: [MenuCommand]) {
+        guard let command = commands.first else { return }
+        let previous = { if case .menu(let p, _) = item.action { return MenuPath.label(for: p) } else { return "" } }()
+        let labelIsDefault = ["", "New action", "New slice", previous].contains(item.label)
+        item.action = .menu(command.path, bundleId: appBundleId)
+        if labelIsDefault { item.label = MenuPath.label(for: command.path) }
+        if isChild, item.icon == nil { item.icon = "sf:" + MenuPath.symbol(for: command.path) }
     }
 
     @ViewBuilder
@@ -386,6 +435,21 @@ struct ItemEditor: View {
         case .url:
             TextField("URL or path", text: text, prompt: Text("https://…, slack://…, ~/Documents"))
             AppPicker(title: "Open with", bundleId: bundleId, noneLabel: "Default app")
+        case .menu:
+            AppPicker(title: "App", bundleId: bundleId, noneLabel: "Frontmost app")
+            LabeledContent("Menu item") {
+                HStack {
+                    Text(menuPathText)
+                        .foregroundStyle(menuPathText == "None" ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                    Button("Choose…") { pickingMenuItem = true }
+                        .disabled(appBundleId == nil)
+                }
+            }
+            Text("Brings the app forward, then clicks this menu item. Works without a keyboard shortcut and on any keyboard layout.")
+                .font(.caption).foregroundStyle(.secondary)
+            AccessibilityNote()
         case .keys:
             LabeledContent("Shortcut") { KeyRecorder(combo: text) }
             AppPicker(title: "Send to", bundleId: bundleId, noneLabel: "Frontmost app")
@@ -405,6 +469,7 @@ struct ItemEditor: View {
     static func title(for kind: Action.Kind) -> String {
         switch kind {
         case .app: "App"
+        case .menu: "Menu"
         case .url: "URL"
         case .keys: "Shortcut"
         case .shell: "Shell"
@@ -427,9 +492,15 @@ struct ItemEditor: View {
                 case .app: item.action = .app(bundleId: new)
                 case .url(let u, _): item.action = .url(u, bundleId: value)
                 case .keys(let k, _): item.action = .keys(k, bundleId: value)
+                case .menu(let p, _): item.action = .menu(p, bundleId: value)
                 default: break
                 }
             })
+    }
+
+    private var menuPathText: String {
+        if case .menu(let path, _) = item.action, !path.isEmpty { return MenuPath.display(path) }
+        return "None"
     }
 
     private var text: Binding<String> {

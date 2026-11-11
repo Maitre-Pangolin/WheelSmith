@@ -40,6 +40,20 @@ enum Snapshot {
                size: CGSize(width: 980, height: 640), to: dir.appendingPathComponent("settings.png"))
         render(SettingsView(store: store, launchAtLogin: LaunchAtLogin(), tab: .general),
                size: CGSize(width: 980, height: 640), to: dir.appendingPathComponent("settings-general.png"))
+        // Sample data: the live scan needs Accessibility, which an offscreen render doesn't have.
+        let sample: [MenuCommand] = [
+            .init(path: ["Shell", "New Window"], shortcut: "⌘N", enabled: true),
+            .init(path: ["Shell", "New Tab"], shortcut: "⌘T", enabled: true),
+            .init(path: ["Shell", "Split Vertically with Current Profile"], shortcut: "⌘D", enabled: true),
+            .init(path: ["Shell", "Split Horizontally with Current Profile"], shortcut: "⇧⌘D", enabled: true),
+            .init(path: ["Shell", "Close"], shortcut: "⌘W", enabled: true),
+            .init(path: ["Edit", "Find", "Find…"], shortcut: "⌘F", enabled: true),
+            .init(path: ["Edit", "Clear Buffer"], shortcut: "⌘K", enabled: true),
+            .init(path: ["View", "Enter Full Screen"], shortcut: "⌃⌘F", enabled: true),
+            .init(path: ["Window", "Minimize"], shortcut: "⌘M", enabled: false),
+        ]
+        render(MenuBrowserSheet(bundleId: DefaultConfig.BundleID.iterm, mode: .addMany(limit: 3), preset: sample) { _ in },
+               size: CGSize(width: 580, height: 620), to: dir.appendingPathComponent("menu-browser.png"))
         print("Snapshots written to \(dir.path)")
     }
 

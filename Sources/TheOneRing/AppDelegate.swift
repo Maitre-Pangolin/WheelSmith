@@ -98,4 +98,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func editConfig() { NSWorkspace.shared.open(store.url) }
     @objc private func toggleLaunchAtLogin() { launchAtLogin.isEnabled.toggle() }
     @objc private func quit() { NSApp.terminate(nil) }
+
+    /// Opening the app again (Spotlight, Finder, `open -a TheOneRing`) shows Settings. This is the way
+    /// in when the menu-bar icon is hidden, e.g. pushed behind the notch on a full menu bar.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings.show()
+        return false
+    }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds build/TheOneRing.app (release, signed ad-hoc unless SIGN_IDENTITY is set).
+# Builds build/TheOneRing.app (release). Signs with a stable identity when one is available.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -15,7 +15,31 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/TheOneRing" "$APP/Contents/MacOS/TheOneRing"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 
-# Ad-hoc signing ("-") is enough to run locally. If you have a Developer ID / Apple Development
-# certificate, set SIGN_IDENTITY so macOS keeps the Accessibility grant across rebuilds.
-codesign --force --sign "${SIGN_IDENTITY:--}" "$APP" >/dev/null
-echo "✓ Built $APP"
+# Signing identity, in order of preference:
+#   1. $SIGN_IDENTITY, if you set it (e.g. an "Apple Development: …" certificate)
+#   2. "TheOneRing Local Signing", created once by ./scripts/setup-signing.sh
+#   3. ad-hoc ("-"): runs fine, but macOS forgets the Accessibility grant on every rebuild
+LOCAL_IDENTITY="TheOneRing Local Signing"
+KEYCHAIN_ARGS=()
+if [[ -n "${SIGNING_KEYCHAIN:-}" ]]; then KEYCHAIN_ARGS=(--keychain "$SIGNING_KEYCHAIN"); fi
+
+SIGN_LABEL=""
+if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+    # Sign by SHA-1 hash: unambiguous even if the name ever appears twice.
+    HASH="$(security find-identity -v -p codesigning ${SIGNING_KEYCHAIN:+"$SIGNING_KEYCHAIN"} 2>/dev/null \
+        | awk -v name="\"$LOCAL_IDENTITY\"" 'index($0, name) {print $2; exit}')"
+    if [[ -n "$HASH" ]]; then
+        SIGN_IDENTITY="$HASH"
+        SIGN_LABEL="$LOCAL_IDENTITY"
+    else
+        SIGN_IDENTITY="-"
+        if security find-certificate -c "$LOCAL_IDENTITY" ${SIGNING_KEYCHAIN:+"$SIGNING_KEYCHAIN"} >/dev/null 2>&1; then
+            echo "  (\"$LOCAL_IDENTITY\" isn't trusted for code signing yet: run ./scripts/setup-signing.sh)"
+        else
+            echo "  (signing ad-hoc: run ./scripts/setup-signing.sh once so Accessibility survives reinstalls)"
+        fi
+    fi
+fi
+
+codesign --force --sign "$SIGN_IDENTITY" ${KEYCHAIN_ARGS[@]+"${KEYCHAIN_ARGS[@]}"} "$APP" >/dev/null
+echo "✓ Built $APP (signed: $([[ "$SIGN_IDENTITY" == "-" ]] && echo ad-hoc || echo "${SIGN_LABEL:-$SIGN_IDENTITY}"))"
