@@ -83,6 +83,25 @@ public struct WheelGeometry: Equatable, Sendable {
         }
     }
 
+    /// How far from the center, to the right (`side` 1) or left (-1), a box vertically centered on the
+    /// wheel and `halfHeight` tall each way must start to clear the slice disk and the open sub-ring.
+    public func horizontalClearance(halfHeight: Double, openParent: Int?, side: Double = 1) -> Double {
+        var clearance = metrics.ringOuter
+        guard let p = openParent, p < count, childCounts[p] > 0 else { return clearance }
+        let steps = 16
+        for a in childAngles(parent: p) {
+            for i in 0...steps {
+                let theta = a - metrics.childSpan / 2 + Double(i) * metrics.childSpan / Double(steps)
+                for k in 0...4 {
+                    let r = metrics.subInner + Double(k) * (metrics.subOuter - metrics.subInner) / 4
+                    let x = r * sin(theta) * side, y = r * cos(theta)
+                    if x > 0, abs(y) <= halfHeight { clearance = max(clearance, x) }
+                }
+            }
+        }
+        return clearance
+    }
+
     public func hit(dx: Double, dy: Double, openParent: Int?) -> WheelHit {
         let r = (dx * dx + dy * dy).squareRoot()
         if r < metrics.hubRadius { return .center }

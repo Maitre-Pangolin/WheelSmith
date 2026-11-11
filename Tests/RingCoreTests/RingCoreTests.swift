@@ -252,3 +252,61 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(try ConfigFile.decode(ConfigFile.encode(c)).sameContent(as: c))
     }
 }
+
+// MARK: - Prompt actions
+
+@Suite struct PromptActionTests {
+    @Test func promptActionRoundTrips() throws {
+        let json = #"""
+        { "items": [ { "label": "Ostraka", "action": { "type": "app", "bundleId": "x.y" },
+          "children": [ { "label": "Quick todo", "action": { "type": "prompt", "command": "ostraka todo add \"$1\"", "placeholder": "Title #tag" } } ] } ] }
+        """#
+        let c = try ConfigFile.decode(json: json)
+        let action = c.items[0].children[0].action
+        #expect(action == .prompt(command: #"ostraka todo add "$1""#, placeholder: "Title #tag"))
+        #expect(action.kind == .prompt)
+        #expect(action.bundleId == nil)
+        #expect(try ConfigFile.decode(ConfigFile.encode(c)).sameContent(as: c))
+    }
+
+    @Test func placeholderIsOptional() throws {
+        let json = #"{ "items": [ { "label": "Ask", "action": { "type": "prompt", "command": "say \"$1\"" } } ] }"#
+        #expect(try ConfigFile.decode(json: json).items[0].action == .prompt(command: #"say "$1""#, placeholder: nil))
+    }
+
+    @Test func convertingBetweenShellAndPromptKeepsCommand() {
+        #expect(Action.shell("echo").converted(to: .prompt) == .prompt(command: "echo", placeholder: nil))
+        #expect(Action.prompt(command: "echo", placeholder: "x").converted(to: .shell) == .shell("echo"))
+    }
+
+    @Test func defaultOstrakaSliceHasQuickTodo() {
+        let ostraka = DefaultConfig.config.items.first { $0.label == "Ostraka" }
+        #expect(ostraka?.children.first?.action.kind == .prompt)
+    }
+}
+
+// MARK: - Prompt placement
+
+@Suite struct PromptPlacementTests {
+    /// 4 slices: right (index 1) and left (index 3) at 3 and 9 o'clock.
+    let geometry = WheelGeometry(childCounts: [0, 3, 0, 3])
+    let m = WheelMetrics.standard
+
+    @Test func clearsTheDiskWithoutOpenSubActions() {
+        #expect(geometry.horizontalClearance(halfHeight: 60, openParent: nil) == m.ringOuter)
+        #expect(geometry.horizontalClearance(halfHeight: 60, openParent: 0, side: 1) == m.ringOuter)
+    }
+
+    @Test func clearsSubActionsOnTheSameSide() {
+        let right = geometry.horizontalClearance(halfHeight: 60, openParent: 1, side: 1)
+        #expect(right > m.subOuter - 1 && right <= m.subOuter)
+        // The right-hand sub-actions don't push a field on the left.
+        #expect(geometry.horizontalClearance(halfHeight: 60, openParent: 1, side: -1) == m.ringOuter)
+    }
+
+    @Test func ignoresSubActionsAboveTheField() {
+        // Slice 0 is at 12 o'clock: its sub-actions are well above a field centered on the wheel.
+        let top = WheelGeometry(childCounts: [3, 0, 0, 0])
+        #expect(top.horizontalClearance(halfHeight: 60, openParent: 0, side: 1) == m.ringOuter)
+    }
+}

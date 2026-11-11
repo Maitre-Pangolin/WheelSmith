@@ -35,6 +35,7 @@ final class IconCache {
         case .keys: "command"
         case .menu: "filemenu.and.selection"
         case .shell: "terminal"
+        case .prompt: "text.cursor"
         case .none: "circle.dotted"
         }
     }

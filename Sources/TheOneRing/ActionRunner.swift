@@ -26,6 +26,8 @@ enum ActionRunner {
             pressMenu(path, in: bundleId, context: context)
         case .shell(let command):
             runShell(command)
+        case .prompt:
+            break // The wheel handles it: it stays open with a text field (see WheelController.beginPrompt).
         case .none:
             break
         }
@@ -107,10 +109,23 @@ enum ActionRunner {
 
     // MARK: Shell
 
+    /// Started by launchd, the app gets a bare PATH, and `zsh -lc` doesn't read ~/.zshrc, where tools in
+    /// ~/.local/bin or Homebrew are usually added (an interactive shell would, but can take seconds to start).
+    /// So the usual places for your own tools come first.
+    static let shellEnvironment: [String: String] = {
+        var env = ProcessInfo.processInfo.environment
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let current = (env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin").split(separator: ":").map(String.init)
+        let extra = ["\(home)/.local/bin", "\(home)/bin", "/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin"]
+        env["PATH"] = (extra.filter { !current.contains($0) } + current).joined(separator: ":")
+        return env
+    }()
+
     static func runShell(_ command: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-lc", command]
+        process.environment = shellEnvironment
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice

@@ -14,18 +14,46 @@ final class WheelModel: ObservableObject {
     /// Display the wheel is on, and how many there are (for the window badges).
     @Published var hereDisplay: Int?
     @Published var displayCount = 1
+    /// Set while a Prompt action waits for text: the wheel stays open with a text field beside it.
+    @Published var prompt: PromptModel?
+    /// Horizontal offset of the text field's center from the wheel's center (negative: on the left).
+    @Published var promptOffset: CGFloat = 0
     /// Set by the snapshot renderer: draw a solid backdrop (blur can't be captured offscreen).
     var opaqueBackdrop = false
+}
+
+/// The wheel, centered, with room on either side for a prompt's text field.
+enum Stage {
+    /// Between the wheel (or its open sub-actions) and the text field.
+    static let promptGap: CGFloat = 18
+    /// Half the text field's height with a status line, used to keep it clear of the sub-actions.
+    static let promptHalfHeight: Double = 62
+
+    static func size(_ m: WheelMetrics = .standard) -> CGSize {
+        let half = max(CGFloat(m.canvasSize) / 2, CGFloat(m.subOuter) + promptGap + PromptCard.width + 12)
+        return CGSize(width: 2 * half, height: m.canvasSize)
+    }
 }
 
 struct LiveWheelView: View {
     @ObservedObject var model: WheelModel
 
     var body: some View {
-        WheelCanvas(items: model.items, theme: model.theme, hit: model.hit,
-                    openParent: model.openParent, visible: model.visible,
-                    opaqueBackdrop: model.opaqueBackdrop, windows: model.windows,
-                    hereDisplay: model.hereDisplay, displayCount: model.displayCount)
+        ZStack {
+            WheelCanvas(items: model.items, theme: model.theme, hit: model.hit,
+                        openParent: model.openParent, visible: model.visible,
+                        opaqueBackdrop: model.opaqueBackdrop, windows: model.windows,
+                        hereDisplay: model.hereDisplay, displayCount: model.displayCount,
+                        dimmed: model.prompt != nil)
+            if let prompt = model.prompt {
+                PromptCard(model: prompt, opaqueBackdrop: model.opaqueBackdrop)
+                    .offset(x: model.promptOffset)
+                    .opacity(model.visible ? 1 : 0)
+                    .transition(.opacity.combined(with: .offset(x: model.promptOffset < 0 ? 14 : -14)))
+            }
+        }
+        .frame(width: Stage.size().width, height: Stage.size().height)
+        .animation(.spring(response: 0.24, dampingFraction: 0.8), value: model.prompt != nil)
     }
 }
 
@@ -40,6 +68,8 @@ struct WheelCanvas: View {
     var windows: [Int: [WindowInfo]] = [:]
     var hereDisplay: Int?
     var displayCount = 1
+    /// Recedes behind a prompt's text field.
+    var dimmed = false
     var metrics = WheelMetrics.standard
 
     private func ring(_ i: Int) -> Ring { Ring(item: items[i], windows: windows[i] ?? []) }
@@ -58,6 +88,7 @@ struct WheelCanvas: View {
             }
             hub
         }
+        .opacity(dimmed ? 0.55 : 1)
         .frame(width: size, height: size)
         .scaleEffect(visible ? 1 : 0.82)
         .opacity(visible ? 1 : 0)
@@ -340,6 +371,8 @@ struct Backdrop<S: Shape>: View {
     let theme: Theme
     var opaque = false
     let shape: S
+    /// Rounded-rectangle mask for the blur; nil masks it to a circle.
+    var cornerRadius: CGFloat? = nil
 
     var body: some View {
         if opaque {
@@ -347,24 +380,25 @@ struct Backdrop<S: Shape>: View {
         } else {
             switch theme.backdrop {
             case .blur(let material, let dark):
-                BlurView(material: material, dark: dark).clipShape(shape)
+                BlurView(material: material, dark: dark, cornerRadius: cornerRadius).clipShape(shape)
             case .glass(let dark):
                 if #available(macOS 26.0, *) {
                     Color.clear
                         .glassEffect(.regular, in: shape)
                         .environment(\.colorScheme, dark ? .dark : .light)
                 } else {
-                    BlurView(material: .hudWindow, dark: dark).clipShape(shape)
+                    BlurView(material: .hudWindow, dark: dark, cornerRadius: cornerRadius).clipShape(shape)
                 }
             }
         }
     }
 }
 
-/// Behind-window blur, masked to a circle with `maskImage` (the supported way to shape it).
+/// Behind-window blur, masked to a circle (or a rounded rectangle) with `maskImage`, the supported way to shape it.
 struct BlurView: NSViewRepresentable {
     let material: NSVisualEffectView.Material
     let dark: Bool
+    var cornerRadius: CGFloat? = nil
 
     func makeNSView(context: Context) -> CircularEffectView {
         let v = CircularEffectView()
@@ -376,14 +410,31 @@ struct BlurView: NSViewRepresentable {
     func updateNSView(_ v: CircularEffectView, context: Context) {
         v.material = material
         v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        v.cornerRadius = cornerRadius
     }
 
     final class CircularEffectView: NSVisualEffectView {
         private var maskedSize: NSSize = .zero
+        var cornerRadius: CGFloat? {
+            didSet { if cornerRadius != oldValue { maskedSize = .zero; needsLayout = true } }
+        }
+
         override func layout() {
             super.layout()
             guard bounds.size != maskedSize, bounds.width > 0 else { return }
             maskedSize = bounds.size
+            if let r = cornerRadius {
+                // Stretchable: only the corners are drawn, the middle scales with the view.
+                let image = NSImage(size: NSSize(width: 2 * r + 1, height: 2 * r + 1), flipped: false) { rect in
+                    NSColor.black.setFill()
+                    NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
+                    return true
+                }
+                image.capInsets = NSEdgeInsets(top: r, left: r, bottom: r, right: r)
+                image.resizingMode = .stretch
+                maskImage = image
+                return
+            }
             maskImage = NSImage(size: bounds.size, flipped: false) { rect in
                 NSColor.black.setFill()
                 NSBezierPath(ovalIn: rect).fill()

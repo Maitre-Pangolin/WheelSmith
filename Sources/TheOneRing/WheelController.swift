@@ -5,8 +5,8 @@ import RingCore
 /// Borderless, transparent, click-through panel that floats above everything (including
 /// full-screen apps) and never takes focus away from the app you're in.
 final class WheelPanel: NSPanel {
-    init(size: CGFloat) {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: size, height: size),
+    init(size: CGSize) {
+        super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
@@ -19,8 +19,16 @@ final class WheelPanel: NSPanel {
         animationBehavior = .none
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Only while a Prompt action waits for text. Being a non-activating panel, it takes the keyboard
+    /// without activating The One Ring, so the app you were in stays frontmost.
+    var acceptsKeyboard = false
+    var onEscape: (() -> Void)?
+
+    override var canBecomeKey: Bool { acceptsKeyboard }
     override var canBecomeMain: Bool { false }
+
+    /// Escape from the text field (the Escape hotkey normally catches it first).
+    override func cancelOperation(_ sender: Any?) { onEscape?() }
 }
 
 /// Shows the wheel under the cursor on hotkey press, follows the cursor, runs the action on release.
@@ -37,13 +45,23 @@ final class WheelController {
     private var layout: DisplayLayout?
     /// Bumped on every open, so late window lists from a previous open are ignored.
     private var openGeneration = 0
+    /// Command of the Prompt action waiting for text, while the wheel stays open for typing.
+    private var promptCommand: String?
+    /// The app we activated to get the keyboard, if the panel couldn't take it on its own.
+    private var appToRestore: NSRunningApplication?
+    /// Bumped on every close, so a prompt command finishing later doesn't touch a newer wheel.
+    private var closeGeneration = 0
 
     init() {
-        panel = WheelPanel(size: metrics.canvasSize)
+        panel = WheelPanel(size: Stage.size(metrics))
         let host = NSHostingView(rootView: LiveWheelView(model: model))
-        host.frame = NSRect(x: 0, y: 0, width: metrics.canvasSize, height: metrics.canvasSize)
+        host.frame = NSRect(origin: .zero, size: Stage.size(metrics))
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
+        panel.onEscape = { [weak self] in self?.cancel() }
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: panel, queue: .main) {
+            [weak self] _ in self?.promptLostFocus()
+        }
         prewarm()
     }
 
@@ -63,6 +81,7 @@ final class WheelController {
     func open() {
         guard !isOpen else { return } // ignore key auto-repeat
         isOpen = true
+        model.prompt = nil
 
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
@@ -75,8 +94,9 @@ final class WheelController {
             if center != mouse { warpPointer(to: center) }
         }
 
-        let half = metrics.canvasSize / 2
-        panel.setFrame(NSRect(x: center.x - half, y: center.y - half, width: half * 2, height: half * 2), display: false)
+        let stage = Stage.size(metrics)
+        panel.setFrame(NSRect(x: center.x - stage.width / 2, y: center.y - stage.height / 2,
+                              width: stage.width, height: stage.height), display: false)
         let layout = DisplayLayout.current()
         self.layout = layout
         model.hereDisplay = layout.index(containing: center)
@@ -102,9 +122,13 @@ final class WheelController {
 
     /// Hotkey released: run whatever is under the pointer.
     func release() {
-        guard isOpen else { return }
+        guard isOpen, model.prompt == nil else { return }
         tick(checkModifiers: false)
         let hit = model.hit
+        if let (item, parent) = promptItem(at: hit), case .prompt(let command, let placeholder) = item.action {
+            beginPrompt(item, parent: parent, command: command, placeholder: placeholder)
+            return
+        }
         close()
         switch hit {
         case .center, .cancel:
@@ -127,6 +151,86 @@ final class WheelController {
         default:
             break
         }
+    }
+
+    // MARK: Prompt
+
+    /// The Prompt action under the pointer, with its parent slice when it's a sub-action.
+    private func promptItem(at hit: WheelHit) -> (WheelItem, WheelItem?)? {
+        switch hit {
+        case .item(let i) where i < model.items.count:
+            let item = model.items[i]
+            return item.action.kind == .prompt ? (item, nil) : nil
+        case .child(let p, let j) where p < model.items.count:
+            let parent = model.items[p]
+            let ring = Ring(item: parent, windows: model.windows[p] ?? [])
+            guard j < ring.count, case .action(let child) = ring.entries[j], child.action.kind == .prompt else { return nil }
+            return (child, parent)
+        default:
+            return nil
+        }
+    }
+
+    /// Keeps the wheel open with a text field: Return runs the command with the text, Escape quits.
+    private func beginPrompt(_ item: WheelItem, parent: WheelItem?, command: String, placeholder: String?) {
+        timer?.invalidate() // stop following the pointer; the highlighted sub-action stays as it is
+        timer = nil
+        promptCommand = command
+        let prompt = PromptModel(title: item.label, caption: parent?.label, placeholder: placeholder, theme: model.theme)
+        prompt.icon = IconCache.shared.icon(for: item, isChild: parent != nil)
+        prompt.onSubmit = { [weak self] in self?.submitPrompt() }
+        model.promptOffset = promptOffset()
+        model.prompt = prompt
+
+        panel.acceptsKeyboard = true
+        panel.ignoresMouseEvents = false
+        panel.makeKeyAndOrderFront(nil)
+        if !panel.isKeyWindow {
+            // Fallback: activate The One Ring to get the keyboard, and hand focus back when done.
+            appToRestore = NSWorkspace.shared.frontmostApplication
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    /// To the right of the wheel, clear of the open sub-actions; on the left when the screen edge is too close.
+    private func promptOffset() -> CGFloat {
+        let width = PromptCard.width
+        func inset(_ side: Double) -> CGFloat {
+            CGFloat(tracker.geometry.horizontalClearance(halfHeight: Stage.promptHalfHeight,
+                                                         openParent: model.openParent, side: side)) + Stage.promptGap
+        }
+        let right = inset(1), left = inset(-1)
+        let screen = (NSScreen.screens.first { NSMouseInRect(center, $0.frame, false) } ?? NSScreen.main)?.visibleFrame
+        let fitsRight = screen.map { center.x + right + width <= $0.maxX - 8 } ?? true
+        let fitsLeft = screen.map { center.x - left - width >= $0.minX + 8 } ?? false
+        return fitsRight || !fitsLeft ? right + width / 2 : -(left + width / 2)
+    }
+
+    private func submitPrompt() {
+        guard let prompt = model.prompt, let command = promptCommand, prompt.status != .running else { return }
+        let text = prompt.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        prompt.status = .running
+        let generation = closeGeneration
+        PromptRunner.run(command, argument: text) { [weak self] ok, output in
+            guard let self, generation == self.closeGeneration, self.model.prompt === prompt else { return }
+            if ok {
+                prompt.status = .done(output.first ?? "Done")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                    if generation == self.closeGeneration { self.close() }
+                }
+            } else {
+                NSSound.beep()
+                prompt.status = .failed(output.last ?? "The command failed")
+            }
+        }
+    }
+
+    /// Clicking another app while typing quits the prompt (not while the command is running).
+    private func promptLostFocus() {
+        guard isOpen, let prompt = model.prompt, prompt.status != .running else { return }
+        close()
     }
 
     // MARK: Windows
@@ -172,16 +276,26 @@ final class WheelController {
 
     private func close() {
         isOpen = false
+        closeGeneration += 1
         timer?.invalidate()
         timer = nil
         HotkeyManager.shared.setEscapeEnabled(false)
         model.visible = false
+        let hadPrompt = model.prompt != nil
+        promptCommand = nil
+        panel.acceptsKeyboard = false
+        panel.ignoresMouseEvents = true
+        if let app = appToRestore {
+            appToRestore = nil
+            app.activate()
+        }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.09
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             guard let self, !self.isOpen else { return }
             self.panel.orderOut(nil)
+            if hadPrompt { self.model.prompt = nil }
         })
     }
 

@@ -24,6 +24,10 @@ cursor. Point at a slice and let go to jump to that app or run its action.
     ignores your keyboard layout.
   - **Shortcut:** focus an app, then send a keyboard shortcut (for example ⌘T in iTerm).
   - **Shell:** run a command.
+  - **Prompt:** release on it and the wheel stays open with a text field. Type, then press
+    Return to run a command with your text as `$1`, or Escape to quit. For example, Ostraka ›
+    **Quick todo** runs `ostraka todo add "$1"`, so typing `Review the board #sched *high ^fri`
+    adds a tagged, high-priority todo due Friday.
   - **None:** for a slice that only groups sub-actions.
 - **Multiple windows and displays:**
   - **Prefer this display:** an app slice focuses the app's window on the display where you
@@ -118,7 +122,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --scratch-pa
 
 | Feature | Permission |
 |---|---|
-| Hotkey, wheel, App / URL / Shell actions | **None.** The hotkey uses Carbon `RegisterEventHotKey`, and the pointer is read by polling. |
+| Hotkey, wheel, App / URL / Shell / Prompt actions | **None.** The hotkey uses Carbon `RegisterEventHotKey`, and the pointer is read by polling. |
 | **Menu** and **Shortcut** actions, **Add from menus**, window picker, prefer this display, Bring here | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
 
 ### Code signing
@@ -170,7 +174,10 @@ menu bar.
     { "label": "Docs", "icon": "sf:book",
       "action": { "type": "url", "url": "https://developer.apple.com", "bundleId": "company.thebrowser.dia" } },
     { "label": "Deploy", "icon": "sf:bolt",
-      "action": { "type": "shell", "command": "open -a iTerm ~/code/app" } }
+      "action": { "type": "shell", "command": "open -a iTerm ~/code/app" } },
+    { "label": "Quick todo", "icon": "sf:checklist",
+      "action": { "type": "prompt", "command": "ostraka todo add \"$1\"",
+                  "placeholder": "Review the board #tag *high ^fri" } }
   ]
 }
 ```
@@ -180,6 +187,17 @@ menu bar.
 bundle ID, run `osascript -e 'id of app "Slack"'`.
 
 Menu titles match loosely: case, extra spaces and a trailing `…` are ignored.
+
+A `prompt` passes what you type as `$1`, never pasted into the command, so quotes, `$` or `;` in
+your text can't run as shell code. Write `"$1"` with the quotes to keep it one argument.
+`placeholder` is optional. Return runs it, shows the command's first line of output and closes the
+wheel; on failure the wheel stays open with the error so you can fix the text. Escape or clicking
+another window quits. The app you were in keeps focus throughout. The field opens to the right of
+the wheel, or on the left near the screen's right edge.
+
+Shell and Prompt commands run with `/bin/zsh -lc`, which doesn't read `~/.zshrc`. So they also look
+in `~/.local/bin`, `~/bin`, `/opt/homebrew/bin` and `/usr/local/bin`. For a tool anywhere else, use
+its full path.
 
 ## Where sub-actions come from
 

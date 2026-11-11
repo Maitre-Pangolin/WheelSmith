@@ -318,6 +318,7 @@ struct SliceRow: View {
         case .keys(let k, _): return KeyCombo(k)?.display ?? "⌨︎"
         case .menu: return "Menu"
         case .shell: return "sh"
+        case .prompt: return "Prompt"
         case .none: return ""
         }
     }
@@ -472,6 +473,13 @@ struct ItemEditor: View {
                 .lineLimit(3...8)
             Text("Runs with /bin/zsh -lc in your home folder.")
                 .font(.caption).foregroundStyle(.secondary)
+        case .prompt:
+            TextField("Command", text: text, prompt: Text("ostraka todo add \"$1\""), axis: .vertical)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(2...6)
+            TextField("Placeholder", text: placeholder, prompt: Text("Shown in the empty field"))
+            Text("Releasing on it keeps the wheel open with a text field. Return runs the command with /bin/zsh -lc in your home folder, Escape quits. What you typed is $1: quote it as \"$1\" and it is passed as is, never run as shell code.")
+                .font(.caption).foregroundStyle(.secondary)
         case .none:
             Text("Does nothing; useful for a slice that only groups sub-actions.")
                 .font(.callout).foregroundStyle(.secondary)
@@ -485,6 +493,7 @@ struct ItemEditor: View {
         case .url: "URL"
         case .keys: "Shortcut"
         case .shell: "Shell"
+        case .prompt: "Prompt"
         case .none: "None"
         }
     }
@@ -522,6 +531,7 @@ struct ItemEditor: View {
                 case .url(let u, _): u
                 case .keys(let k, _): k
                 case .shell(let c): c
+                case .prompt(let c, _): c
                 default: ""
                 }
             },
@@ -530,7 +540,18 @@ struct ItemEditor: View {
                 case .url(_, let b): item.action = .url(new, bundleId: b)
                 case .keys(_, let b): item.action = .keys(new, bundleId: b)
                 case .shell: item.action = .shell(new)
+                case .prompt(_, let p): item.action = .prompt(command: new, placeholder: p)
                 default: break
+                }
+            })
+    }
+
+    private var placeholder: Binding<String> {
+        Binding(
+            get: { if case .prompt(_, let p) = item.action { p ?? "" } else { "" } },
+            set: { new in
+                if case .prompt(let c, _) = item.action {
+                    item.action = .prompt(command: c, placeholder: new.isEmpty ? nil : new)
                 }
             })
     }

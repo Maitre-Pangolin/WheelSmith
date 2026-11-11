@@ -26,7 +26,11 @@ public enum DefaultConfig {
                 keys("New tab", "plus.square.on.square", "cmd+t", B.dia),
                 keys("New window", "macwindow.badge.plus", "cmd+n", B.dia),
             ]),
-            WheelItem(label: "Ostraka", action: .app(bundleId: B.ostraka)),
+            WheelItem(label: "Ostraka", action: .app(bundleId: B.ostraka), children: [
+                WheelItem(label: "Quick todo", icon: "sf:checklist",
+                          action: .prompt(command: "ostraka todo add \"$1\"",
+                                          placeholder: "Review the board #tag *high ^fri")),
+            ]),
             WheelItem(label: "Slack", action: .app(bundleId: B.slack), children: [
                 keys("Jump to…", "magnifyingglass", "cmd+k", B.slack),
                 keys("Threads", "bubble.left.and.bubble.right", "cmd+shift+t", B.slack),

@@ -72,6 +72,34 @@ enum Snapshot {
 
         render(MenuBrowserSheet(bundleId: DefaultConfig.BundleID.iterm, mode: .addMany(limit: 3), preset: sample) { _ in },
                size: CGSize(width: 580, height: 620), to: dir.appendingPathComponent("menu-browser.png"))
+
+        // Prompt action: the wheel stays open on Ostraka › Quick todo with a text field over it.
+        let ostraka = config.items.firstIndex { $0.label == "Ostraka" } ?? 0
+        let geometry = WheelGeometry(childCounts: config.items.map(\.children.count))
+        let offset = CGFloat(geometry.horizontalClearance(halfHeight: Stage.promptHalfHeight, openParent: ostraka))
+            + Stage.promptGap + PromptCard.width / 2
+        for (name, themeId, text, status) in [
+            ("wheel-prompt-midnight", "midnight", "", PromptModel.Status.editing),
+            ("wheel-prompt-daylight-done", "daylight", "Review the SCHED board #sched *high ^fri",
+             .done("Sample output: Added todo “Review the SCHED board”")),
+        ] {
+            let theme = Theme.named(themeId)
+            let prompt = PromptModel(title: "Quick todo", caption: "Ostraka",
+                                     placeholder: "Review the board #tag *high ^fri", theme: theme)
+            prompt.icon = .symbol("checklist")
+            prompt.text = text
+            prompt.status = status
+            let view = ZStack {
+                LinearGradient(colors: theme.isDark
+                               ? [Color(red: 0.13, green: 0.09, blue: 0.27), Color(red: 0.02, green: 0.04, blue: 0.11)]
+                               : [Color(red: 0.95, green: 0.91, blue: 0.99), Color(red: 0.84, green: 0.91, blue: 0.99)],
+                               startPoint: .top, endPoint: .bottom)
+                WheelCanvas(items: config.items, theme: theme, hit: .child(ostraka, 0), openParent: ostraka,
+                            opaqueBackdrop: true, dimmed: true)
+                PromptCard(model: prompt, opaqueBackdrop: true).offset(x: offset)
+            }
+            render(view, size: Stage.size(), to: dir.appendingPathComponent(name + ".png"))
+        }
         print("Snapshots written to \(dir.path)")
     }
 

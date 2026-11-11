@@ -13,11 +13,14 @@ public enum Action: Equatable, Sendable {
     case keys(String, bundleId: String?)
     /// Run a shell command with `/bin/zsh -lc`.
     case shell(String)
+    /// Ask for a line of text in a small floating field, then run `command` with `/bin/zsh -lc`.
+    /// The text is passed as `$1` (never pasted into the command), e.g. `ostraka todo add "$1"`.
+    case prompt(command: String, placeholder: String?)
     /// Do nothing (useful for a slice that only groups sub-actions).
     case none
 
     public enum Kind: String, CaseIterable, Codable, Sendable {
-        case app, menu, keys, url, shell, none
+        case app, menu, keys, url, shell, prompt, none
     }
 
     public var kind: Kind {
@@ -27,6 +30,7 @@ public enum Action: Equatable, Sendable {
         case .url: .url
         case .keys: .keys
         case .shell: .shell
+        case .prompt: .prompt
         case .none: .none
         }
     }
@@ -35,7 +39,7 @@ public enum Action: Equatable, Sendable {
         switch self {
         case .app(let b): b
         case .url(_, let b), .keys(_, let b), .menu(_, let b): b
-        case .shell, .none: nil
+        case .shell, .prompt, .none: nil
         }
     }
 
@@ -47,14 +51,19 @@ public enum Action: Equatable, Sendable {
         case .url: return .url("", bundleId: nil)
         case .keys: return .keys("", bundleId: bundleId)
         case .menu: return .menu([], bundleId: bundleId)
-        case .shell: return .shell("")
+        case .shell:
+            if case .prompt(let cmd, _) = self { return .shell(cmd) }
+            return .shell("")
+        case .prompt:
+            if case .shell(let cmd) = self { return .prompt(command: cmd, placeholder: nil) }
+            return .prompt(command: "", placeholder: nil)
         case .none: return .none
         }
     }
 }
 
 extension Action: Codable {
-    private enum CodingKeys: String, CodingKey { case type, bundleId, url, keys, menu, command }
+    private enum CodingKeys: String, CodingKey { case type, bundleId, url, keys, menu, command, placeholder }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -64,6 +73,8 @@ extension Action: Codable {
         case .keys: self = .keys(try c.decode(String.self, forKey: .keys), bundleId: try c.decodeIfPresent(String.self, forKey: .bundleId))
         case .menu: self = .menu(try c.decode([String].self, forKey: .menu), bundleId: try c.decodeIfPresent(String.self, forKey: .bundleId))
         case .shell: self = .shell(try c.decode(String.self, forKey: .command))
+        case .prompt: self = .prompt(command: try c.decode(String.self, forKey: .command),
+                                     placeholder: try c.decodeIfPresent(String.self, forKey: .placeholder))
         case .none: self = .none
         }
     }
@@ -77,6 +88,9 @@ extension Action: Codable {
         case .keys(let k, let b): try c.encode(k, forKey: .keys); try c.encodeIfPresent(b, forKey: .bundleId)
         case .menu(let path, let b): try c.encode(path, forKey: .menu); try c.encodeIfPresent(b, forKey: .bundleId)
         case .shell(let cmd): try c.encode(cmd, forKey: .command)
+        case .prompt(let cmd, let placeholder):
+            try c.encode(cmd, forKey: .command)
+            try c.encodeIfPresent(placeholder, forKey: .placeholder)
         case .none: break
         }
     }
