@@ -23,6 +23,13 @@ Cursor     ( ⚙ )      Outlook        ← let go in the center = Settings
   - **Shortcut:** focus an app, then send a keyboard shortcut (for example ⌘T in iTerm).
   - **Shell:** run a command.
   - **None:** for a slice that only groups sub-actions.
+- **Multiple windows and displays:**
+  - **Prefer this display:** an app slice focuses the app's window on the display where you
+    opened the wheel, if it has one there. Otherwise it focuses the last used window.
+  - **Window picker:** when an app has 2 or more windows, its outer ring lists them first (title,
+    a display badge, minimized ones dimmed), followed by the sub-actions, up to 8 entries.
+  - **Bring here** (opt-in per slice): moves the app's window onto the display you're on,
+    resized to fit.
 - **Discover sub-actions from menus:** select a slice in Settings and click **Add from … menus**.
   The One Ring reads that app's menu bar and lists every command with its shortcut. Search, tick
   up to 5, and each becomes a sub-action with a matching icon. See [Where sub-actions come
@@ -107,7 +114,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --scratch-pa
 | Feature | Permission |
 |---|---|
 | Hotkey, wheel, App / URL / Shell actions | **None.** The hotkey uses Carbon `RegisterEventHotKey`, and the pointer is read by polling. |
-| **Menu** and **Shortcut** actions, and **Add from menus** | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
+| **Menu** and **Shortcut** actions, **Add from menus**, window picker, prefer this display, Bring here | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
 
 ### Code signing
 
@@ -147,6 +154,7 @@ menu bar.
     {
       "label": "iTerm",
       "action": { "type": "app", "bundleId": "com.googlecode.iterm2" },
+      "bringHere": true,               // optional: move its window to the display you're on
       "children": [                  // ≤ 5
         { "label": "New Tab", "icon": "sf:plus.square.on.square",
           "action": { "type": "menu", "menu": ["Shell", "New Tab"], "bundleId": "com.googlecode.iterm2" } },
@@ -195,6 +203,7 @@ Sources/
     WheelGeometry.swift  angles, rings, hit-testing, sub-ring "sticky parent" tracking
     KeyCombo.swift     "cmd+shift+n" parsing / display
     MenuPath.swift     menu title matching, search, icon guessing
+    RingLayout.swift   how many windows and sub-actions the outer ring shows
   TheOneRing/          the app
     AppDelegate.swift  menu-bar item, wiring
     HotkeyManager.swift  Carbon hotkey press/release (+ Esc while open)
@@ -203,6 +212,7 @@ Sources/
     Theme.swift        all colors / materials
     ActionRunner.swift app focus, URLs, shell, synthesized shortcuts, menu clicks
     MenuBar.swift      reads and clicks other apps' menu bars (Accessibility API)
+    Windows.swift      lists, raises and moves other apps' windows; display layout
     ConfigStore.swift  load / debounced save / live file watching
     LaunchAtLogin.swift  LaunchAgent toggle
     Settings/          visual editor, including the menu browser sheet
@@ -225,6 +235,9 @@ time. Pointer polling runs only while the wheel is open, so The One Ring uses no
   Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings:
   let go in the center of the wheel, or open The One Ring again from Spotlight. There's a Quit
   button under Settings → General.
+- **A window on another Space** is raised by switching to that Space. macOS has no public way to
+  move windows between Spaces, and some apps don't list windows on other Spaces at all.
+  Full-screen windows can't be moved by Bring here.
 - **Near a screen edge** the wheel shifts inward so the slices stay visible, and the pointer moves
   to its center.
 

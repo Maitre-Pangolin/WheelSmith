@@ -360,6 +360,18 @@ struct ItemEditor: View {
                 actionFields
             }
 
+            if !isChild, appBundleId != nil {
+                Section("Windows & displays") {
+                    Toggle("Bring the window to the display I'm on", isOn: $item.bringHere)
+                    Text(item.bringHere
+                         ? "\(appName ?? "The app")'s front window moves onto the display where you opened the wheel, resized to fit if needed."
+                         : "Focuses \(appName ?? "the app")'s window on the display where you opened the wheel, if it has one there. Otherwise it focuses the last used window.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text("When the app has 2 or more windows, they're listed first in this slice's outer ring.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             Section("Icon") {
                 IconPicker(icon: $item.icon)
             }

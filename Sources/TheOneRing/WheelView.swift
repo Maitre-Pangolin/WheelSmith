@@ -9,6 +9,11 @@ final class WheelModel: ObservableObject {
     @Published var hit: WheelHit = .center
     @Published var openParent: Int?
     @Published var visible = false
+    /// Open windows per slice index (filled shortly after the wheel opens).
+    @Published var windows: [Int: [WindowInfo]] = [:]
+    /// Display the wheel is on, and how many there are (for the window badges).
+    @Published var hereDisplay: Int?
+    @Published var displayCount = 1
     /// Set by the snapshot renderer: draw a solid backdrop (blur can't be captured offscreen).
     var opaqueBackdrop = false
 }
@@ -19,7 +24,8 @@ struct LiveWheelView: View {
     var body: some View {
         WheelCanvas(items: model.items, theme: model.theme, hit: model.hit,
                     openParent: model.openParent, visible: model.visible,
-                    opaqueBackdrop: model.opaqueBackdrop)
+                    opaqueBackdrop: model.opaqueBackdrop, windows: model.windows,
+                    hereDisplay: model.hereDisplay, displayCount: model.displayCount)
     }
 }
 
@@ -32,9 +38,15 @@ struct WheelCanvas: View {
     var visible = true
     var opaqueBackdrop = false
     var showsHubHint = true
+    var windows: [Int: [WindowInfo]] = [:]
+    var hereDisplay: Int?
+    var displayCount = 1
     var metrics = WheelMetrics.standard
 
-    private var geometry: WheelGeometry { WheelGeometry(childCounts: items.map(\.children.count), metrics: metrics) }
+    private func ring(_ i: Int) -> Ring { Ring(item: items[i], windows: windows[i] ?? []) }
+    private var geometry: WheelGeometry {
+        WheelGeometry(childCounts: items.indices.map { ring($0).count }, metrics: metrics)
+    }
     private var size: CGFloat { metrics.canvasSize }
     private var spring: Animation { .spring(response: 0.22, dampingFraction: 0.78) }
 
@@ -97,8 +109,8 @@ struct WheelCanvas: View {
                 .opacity(dimmed ? 0.55 : 1)
                 .position(Self.point(center, midRadius + (selected ? 4 : 0), size))
 
-            if !item.children.isEmpty {
-                // Small dot on the rim hinting there are sub-actions.
+            if ring(i).count > 0 {
+                // Small dot on the rim hinting there are sub-actions or windows.
                 Circle()
                     .fill(active ? theme.text : theme.subtext)
                     .frame(width: 4, height: 4)
@@ -113,12 +125,12 @@ struct WheelCanvas: View {
 
     @ViewBuilder
     private var subRing: some View {
-        if let p = openParent, p < items.count, !items[p].children.isEmpty {
-            let parent = items[p]
+        if let p = openParent, p < items.count, ring(p).count > 0 {
+            let entries = ring(p).entries
             let angles = geometry.childAngles(parent: p)
             let mid = (metrics.subInner + metrics.subOuter) / 2
             ZStack {
-                ForEach(Array(parent.children.enumerated()), id: \.element.id) { j, child in
+                ForEach(Array(entries.enumerated()), id: \.element.id) { j, entry in
                     let selected = hit == .child(p, j)
                     ZStack {
                         AnnularSector(center: angles[j], span: metrics.childSpan, inner: metrics.subInner,
@@ -133,15 +145,7 @@ struct WheelCanvas: View {
                             )
                             .shadow(color: selected ? theme.glow.opacity(0.6) : theme.shadow.opacity(0.5),
                                     radius: selected ? 14 : 8)
-                        VStack(spacing: 4) {
-                            IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 22,
-                                     tint: selected ? .white : theme.symbol)
-                            Text(child.label)
-                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                                .foregroundStyle(selected ? .white : theme.subtext)
-                                .lineLimit(1)
-                                .frame(maxWidth: 92)
-                        }
+                        ringEntryLabel(entry, selected: selected)
                         .scaleEffect(selected ? 1.08 : 1)
                         .position(Self.point(angles[j], mid + (selected ? 3 : 0), size))
                     }
@@ -183,8 +187,11 @@ struct WheelCanvas: View {
             }
         case .item(let i) where i < items.count:
             hubLabel(items[i].label, caption: nil)
-        case .child(let p, let j) where p < items.count && j < items[p].children.count:
-            hubLabel(items[p].children[j].label, caption: items[p].label)
+        case .child(let p, let j) where p < items.count && j < ring(p).count:
+            switch ring(p).entries[j] {
+            case .window(let w): hubLabel(w.title, caption: windowCaption(w, app: items[p].label))
+            case .action(let a): hubLabel(a.label, caption: items[p].label)
+            }
         case .cancel:
             VStack(spacing: 2) {
                 Image(systemName: "xmark").font(.system(size: 14, weight: .bold))
@@ -194,6 +201,48 @@ struct WheelCanvas: View {
         default:
             EmptyView()
         }
+    }
+
+    // MARK: Ring entries
+
+    @ViewBuilder
+    private func ringEntryLabel(_ entry: Ring.Entry, selected: Bool) -> some View {
+        VStack(spacing: 4) {
+            switch entry {
+            case .action(let child):
+                IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 22,
+                         tint: selected ? .white : theme.symbol)
+            case .window(let w):
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: w.isMinimized ? "minus.rectangle" : "macwindow")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(selected ? .white : theme.symbol)
+                        .frame(width: 26, height: 22)
+                    if displayCount > 1, let d = w.displayIndex {
+                        let here = d == hereDisplay
+                        Text("\(d + 1)")
+                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .foregroundStyle(here ? Color.white : theme.text)
+                            .frame(width: 12, height: 12)
+                            .background(Circle().fill(here ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover, startPoint: .top, endPoint: .bottom))
+                                                           : AnyShapeStyle(theme.stroke.opacity(2))))
+                            .offset(x: 6, y: -5)
+                    }
+                }
+            }
+            Text(entry.label)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(selected ? .white : theme.subtext)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 92)
+                .opacity(entry.isDimmed && !selected ? 0.6 : 1)
+        }
+    }
+
+    private func windowCaption(_ w: WindowInfo, app: String) -> String {
+        guard displayCount > 1, let d = w.displayIndex else { return app }
+        return d == hereDisplay ? "\(app) · this display" : "\(app) · display \(d + 1)"
     }
 
     private func hubLabel(_ title: String, caption: String?) -> some View {
@@ -218,6 +267,39 @@ struct WheelCanvas: View {
     /// Position for angle θ (0 = up, clockwise) at radius r, in a square canvas of side `size`.
     static func point(_ angle: Double, _ r: Double, _ size: CGFloat) -> CGPoint {
         CGPoint(x: size / 2 + r * sin(angle), y: size / 2 - r * cos(angle))
+    }
+}
+
+// MARK: - Ring model
+
+/// What a slice's outer ring shows: its open windows (only when it has 2+), then its sub-actions.
+/// Shared by the drawing and the controller so indices always line up.
+struct Ring {
+    enum Entry: Identifiable {
+        case window(WindowInfo)
+        case action(WheelItem)
+
+        var id: UUID {
+            switch self {
+            case .window(let w): w.id
+            case .action(let a): a.id
+            }
+        }
+        var label: String {
+            switch self {
+            case .window(let w): w.title
+            case .action(let a): a.label
+            }
+        }
+        var isDimmed: Bool { if case .window(let w) = self { w.isMinimized } else { false } }
+    }
+
+    let entries: [Entry]
+    var count: Int { entries.count }
+
+    init(item: WheelItem, windows: [WindowInfo]) {
+        let shown = RingLayout.counts(windows: windows.count, actions: item.children.count)
+        entries = windows.prefix(shown.windows).map(Entry.window) + item.children.prefix(shown.actions).map(Entry.action)
     }
 }
 

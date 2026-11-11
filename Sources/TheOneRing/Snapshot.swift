@@ -52,6 +52,24 @@ enum Snapshot {
             .init(path: ["View", "Enter Full Screen"], shortcut: "⌃⌘F", enabled: true),
             .init(path: ["Window", "Minimize"], shortcut: "⌘M", enabled: false),
         ]
+        // Window ring: iTerm (slice 7) with three windows across two displays, hovering the second.
+        let dummy = AXUIElementCreateApplication(0)
+        func window(_ title: String, display: Int, minimized: Bool = false) -> WindowInfo {
+            WindowInfo(element: dummy, title: title, frame: .zero, isMinimized: minimized, isFullScreen: false,
+                       displayIndex: display)
+        }
+        let itermWindows = [window("~/perso/TheOneRing", display: 0), window("ssh prod-api", display: 1),
+                            window("htop", display: 1, minimized: true)]
+        let midnight = Theme.named("midnight")
+        let windowRing = ZStack {
+            LinearGradient(colors: [Color(red: 0.13, green: 0.09, blue: 0.27), Color(red: 0.02, green: 0.04, blue: 0.11)],
+                           startPoint: .top, endPoint: .bottom)
+            WheelCanvas(items: config.items, theme: midnight, hit: .child(7, 1), openParent: 7, opaqueBackdrop: true,
+                        windows: [7: itermWindows], hereDisplay: 0, displayCount: 2)
+        }
+        let side = WheelMetrics.standard.canvasSize
+        render(windowRing, size: CGSize(width: side, height: side), to: dir.appendingPathComponent("wheel-windows.png"))
+
         render(MenuBrowserSheet(bundleId: DefaultConfig.BundleID.iterm, mode: .addMany(limit: 3), preset: sample) { _ in },
                size: CGSize(width: 580, height: 620), to: dir.appendingPathComponent("menu-browser.png"))
         print("Snapshots written to \(dir.path)")

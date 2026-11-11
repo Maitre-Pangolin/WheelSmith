@@ -207,3 +207,40 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(MenuPath.symbol(for: ["Help", "Something Odd"]) == "filemenu.and.selection")
     }
 }
+
+// MARK: - Window ring
+
+@Suite struct RingLayoutTests {
+    @Test func windowsOnlyWhenMoreThanOne() {
+        #expect(RingLayout.counts(windows: 0, actions: 2) == (0, 2))
+        #expect(RingLayout.counts(windows: 1, actions: 2) == (0, 2))
+        #expect(RingLayout.counts(windows: 2, actions: 2) == (2, 2))
+    }
+
+    @Test func capsKeepSomeActionsReachable() {
+        #expect(RingLayout.counts(windows: 10, actions: 5) == (6, 2))
+        #expect(RingLayout.counts(windows: 4, actions: 5) == (4, 4))
+        #expect(RingLayout.counts(windows: 3, actions: 0) == (3, 0))
+    }
+
+    @Test func eightEntriesFitAroundAnySlice() {
+        let geo = WheelGeometry(childCounts: [8, 0, 0, 0, 0, 0, 0, 0])
+        let angles = geo.childAngles(parent: 0)
+        #expect(angles.count == 8)
+        // Every entry is still selectable by angle.
+        for (j, a) in angles.enumerated() {
+            let dx = 200 * sin(a), dy = 200 * cos(a)
+            #expect(geo.hit(dx: dx, dy: dy, openParent: 0) == .child(0, j))
+        }
+    }
+
+    @Test func bringHereRoundTripsAndDefaultsOff() throws {
+        let c = try ConfigFile.decode(json: """
+        { "items": [ { "label": "A", "action": { "type": "app", "bundleId": "a" }, "bringHere": true },
+                     { "label": "B", "action": { "type": "app", "bundleId": "b" } } ] }
+        """)
+        #expect(c.items[0].bringHere)
+        #expect(!c.items[1].bringHere)
+        #expect(try ConfigFile.decode(ConfigFile.encode(c)).sameContent(as: c))
+    }
+}

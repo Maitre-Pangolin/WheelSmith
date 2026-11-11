@@ -35,6 +35,10 @@ final class WheelController {
     private var requiredModifiers: NSEvent.ModifierFlags = []
     private(set) var isOpen = false
     private let metrics = WheelMetrics.standard
+    /// Display arrangement captured when the wheel opened.
+    private var layout: DisplayLayout?
+    /// Bumped on every open, so late window lists from a previous open are ignored.
+    private var openGeneration = 0
 
     init() {
         panel = WheelPanel(size: metrics.canvasSize)
@@ -48,7 +52,7 @@ final class WheelController {
     func apply(config: RingConfig) {
         model.items = config.items
         model.theme = Theme.named(config.theme)
-        tracker = WheelTracker(geometry: WheelGeometry(childCounts: config.items.map(\.children.count), metrics: metrics))
+        tracker = WheelTracker(geometry: ringGeometry(windows: [:]))
         requiredModifiers = NSEvent.ModifierFlags(KeyCombo(config.hotkey)?.modifiers.map(\.eventFlag) ?? [])
         IconCache.shared.preload(config.items)
     }
@@ -72,9 +76,16 @@ final class WheelController {
 
         let half = metrics.canvasSize / 2
         panel.setFrame(NSRect(x: center.x - half, y: center.y - half, width: half * 2, height: half * 2), display: false)
+        let layout = DisplayLayout.current()
+        self.layout = layout
+        model.hereDisplay = layout.index(containing: center)
+        model.displayCount = layout.count
+        model.windows = [:]
+        tracker.geometry = ringGeometry(windows: [:])
         tracker.reset()
         model.hit = .center
         model.openParent = nil
+        loadWindows(layout: layout)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
         // Flip on the next runloop pass so SwiftUI animates the pop-in from the hidden state.
@@ -98,11 +109,58 @@ final class WheelController {
         case .center:
             onOpenSettings?()
         case .item(let i) where i < model.items.count:
-            ActionRunner.run(model.items[i].action)
-        case .child(let p, let j) where p < model.items.count && j < model.items[p].children.count:
-            ActionRunner.run(model.items[p].children[j].action)
+            let item = model.items[i]
+            ActionRunner.run(item.action, context: context(for: item))
+        case .child(let p, let j) where p < model.items.count:
+            let parent = model.items[p]
+            let ring = Ring(item: parent, windows: model.windows[p] ?? [])
+            guard j < ring.count else { break }
+            switch ring.entries[j] {
+            case .window(let window):
+                if let bundleId = parent.action.bundleId {
+                    ActionRunner.focus(window: window, of: bundleId, context: context(for: parent))
+                }
+            case .action(let child):
+                ActionRunner.run(child.action, context: context(for: parent))
+            }
         default:
             break
+        }
+    }
+
+    // MARK: Windows
+
+    private func context(for item: WheelItem) -> ActionContext {
+        ActionContext(layout: layout, displayIndex: model.hereDisplay, bringHere: item.bringHere)
+    }
+
+    private func ringGeometry(windows: [Int: [WindowInfo]]) -> WheelGeometry {
+        WheelGeometry(childCounts: model.items.indices.map { Ring(item: model.items[$0], windows: windows[$0] ?? []).count },
+                      metrics: metrics)
+    }
+
+    /// Reads the open windows of every app slice in the background; the ring updates when they arrive
+    /// (normally within a frame or two, well before you reach the outer ring).
+    private func loadWindows(layout: DisplayLayout) {
+        guard ActionRunner.hasAccessibility else { return }
+        openGeneration += 1
+        let generation = openGeneration
+        let targets: [(Int, String)] = model.items.enumerated().compactMap { i, item in
+            if case .app(let id) = item.action, !id.isEmpty { return (i, id) } else { return nil }
+        }
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            var found: [Int: [WindowInfo]] = [:]
+            let lock = NSLock()
+            DispatchQueue.concurrentPerform(iterations: targets.count) { k in
+                let (index, bundleId) = targets[k]
+                let windows = Windows.list(bundleId: bundleId, layout: layout)
+                lock.lock(); found[index] = windows; lock.unlock()
+            }
+            DispatchQueue.main.async {
+                guard let self, self.isOpen, generation == self.openGeneration else { return }
+                self.model.windows = found
+                self.tracker.geometry = self.ringGeometry(windows: found)
+            }
         }
     }
 

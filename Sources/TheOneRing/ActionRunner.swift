@@ -2,17 +2,28 @@ import AppKit
 import ApplicationServices
 import RingCore
 
+/// Where the wheel was opened, so actions can favour that display.
+struct ActionContext {
+    var layout: DisplayLayout?
+    /// Index into `layout` of the display under the wheel.
+    var displayIndex: Int?
+    /// Move the app's window onto that display (the slice's "Bring here" option).
+    var bringHere = false
+
+    static let none = ActionContext()
+}
+
 enum ActionRunner {
-    static func run(_ action: Action) {
+    static func run(_ action: Action, context: ActionContext = .none) {
         switch action {
         case .app(let bundleId):
-            focus(bundleId)
+            focus(bundleId, context: context)
         case .url(let text, let bundleId):
             openURL(text, with: bundleId)
         case .keys(let combo, let bundleId):
-            sendShortcut(combo, to: bundleId)
+            sendShortcut(combo, to: bundleId, context: context)
         case .menu(let path, let bundleId):
-            pressMenu(path, in: bundleId)
+            pressMenu(path, in: bundleId, context: context)
         case .shell(let command):
             runShell(command)
         case .none:
@@ -22,8 +33,40 @@ enum ActionRunner {
 
     // MARK: Apps
 
+    /// Brings the app forward, preferring its window on the wheel's display:
+    /// - "Bring here": the app's front window moves onto the wheel's display.
+    /// - Otherwise: if the app has a window on the wheel's display, that one gets focus.
+    /// - Otherwise (or without Accessibility): like a Dock click, so the last used window.
+    static func focus(_ bundleId: String, context: ActionContext = .none, completion: (() -> Void)? = nil) {
+        let isRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
+        guard isRunning, let layout = context.layout, let display = context.displayIndex else {
+            activate(bundleId, completion: completion)
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let windows = Windows.list(bundleId: bundleId, layout: layout).filter { !$0.isMinimized }
+            let target = context.bringHere ? windows.first : windows.first { $0.displayIndex == display }
+            if let target {
+                if context.bringHere { Windows.move(target, toDisplay: display, layout: layout) }
+                Windows.raise(target)
+            }
+            DispatchQueue.main.async { activate(bundleId, raising: target, completion: completion) }
+        }
+    }
+
+    /// Focus one specific window (picked from the wheel's window ring).
+    static func focus(window: WindowInfo, of bundleId: String, context: ActionContext) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if context.bringHere, let display = context.displayIndex, let layout = context.layout {
+                Windows.move(window, toDisplay: display, layout: layout)
+            }
+            Windows.raise(window)
+            DispatchQueue.main.async { activate(bundleId, raising: window) }
+        }
+    }
+
     /// Like clicking the Dock icon: launches if needed, brings it forward, reopens a window if it has none.
-    static func focus(_ bundleId: String) {
+    private static func activate(_ bundleId: String, raising window: WindowInfo? = nil, completion: (() -> Void)? = nil) {
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
             NSSound.beep()
             return
@@ -32,6 +75,9 @@ enum ActionRunner {
         config.activates = true
         NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
             if let error { NSLog("TheOneRing: could not open \(bundleId): \(error)") }
+            // Activation can reorder windows; make sure the chosen one ends up in front.
+            if let window { DispatchQueue.global(qos: .userInitiated).async { Windows.raise(window) } }
+            if let completion { DispatchQueue.main.async(execute: completion) }
         }
     }
 
@@ -75,7 +121,7 @@ enum ActionRunner {
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
     }
 
-    static func sendShortcut(_ text: String, to bundleId: String?) {
+    static func sendShortcut(_ text: String, to bundleId: String?, context: ActionContext = .none) {
         guard let combo = KeyCombo(text), let code = KeyboardLayout.keyCode(for: combo.key) else {
             NSSound.beep()
             return
@@ -84,19 +130,19 @@ enum ActionRunner {
             requestAccessibility()
             return
         }
-        whenReady(bundleId) { post(code: code, flags: CGEventFlags(combo.modifiers.map(\.cgFlag))) }
+        whenReady(bundleId, context: context) { post(code: code, flags: CGEventFlags(combo.modifiers.map(\.cgFlag))) }
     }
 
     // MARK: Menu items
 
     /// Brings the app forward, then clicks the menu item at `path` (e.g. ["Shell", "New Tab"]).
-    static func pressMenu(_ path: [String], in bundleId: String?) {
+    static func pressMenu(_ path: [String], in bundleId: String?, context: ActionContext = .none) {
         guard !path.isEmpty else { NSSound.beep(); return }
         guard hasAccessibility else {
             requestAccessibility()
             return
         }
-        whenReady(bundleId) {
+        whenReady(bundleId, context: context) {
             let app = bundleId.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
                 ?? NSWorkspace.shared.frontmostApplication
             guard let pid = app?.processIdentifier else { NSSound.beep(); return }
@@ -113,10 +159,10 @@ enum ActionRunner {
     }
 
     /// Runs `body` once `bundleId` (if any) is frontmost and the hotkey's modifiers are up.
-    private static func whenReady(_ bundleId: String?, then body: @escaping () -> Void) {
+    private static func whenReady(_ bundleId: String?, context: ActionContext, then body: @escaping () -> Void) {
         if let bundleId, NSWorkspace.shared.frontmostApplication?.bundleIdentifier != bundleId {
             let wasRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
-            focus(bundleId)
+            focus(bundleId, context: context)
             waitUntil(timeout: wasRunning ? 1.5 : 8, {
                 NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId && modifiersReleased
             }) {
