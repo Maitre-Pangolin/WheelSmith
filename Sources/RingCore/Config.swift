@@ -188,13 +188,13 @@ extension RingConfig: Codable {
 }
 
 public enum ConfigFile {
-    /// ~/.config/theonering/config.json, or $THEONERING_CONFIG when set (handy for development).
+    /// ~/.config/wheelsmith/config.json, or $WHEELSMITH_CONFIG when set (handy for development).
     public static var defaultURL: URL {
-        if let override = ProcessInfo.processInfo.environment["THEONERING_CONFIG"], !override.isEmpty {
+        if let override = ProcessInfo.processInfo.environment["WHEELSMITH_CONFIG"], !override.isEmpty {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
         return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/theonering/config.json")
+            .appendingPathComponent(".config/wheelsmith/config.json")
     }
 
     public static func encode(_ config: RingConfig) throws -> Data {

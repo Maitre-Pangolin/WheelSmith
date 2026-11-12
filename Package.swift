@@ -14,14 +14,14 @@ let testLinkerSettings: [LinkerSetting] = needsCLTTesting
     ? [.unsafeFlags(["-F", cltFrameworks, "-Xlinker", "-rpath", "-Xlinker", cltFrameworks])] : []
 
 let package = Package(
-    name: "TheOneRing",
+    name: "WheelSmith",
     platforms: [.macOS(.v14)],
     targets: [
         // Pure logic: config model, wheel geometry, key-combo parsing. No AppKit, fully unit-tested.
         .target(name: "RingCore"),
         // The menu-bar app: hotkey, overlay panel, SwiftUI wheel, settings window, action runner.
         .executableTarget(
-            name: "TheOneRing",
+            name: "WheelSmith",
             dependencies: ["RingCore"],
             linkerSettings: [.linkedFramework("Carbon")]
         ),

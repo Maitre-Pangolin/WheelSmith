@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import os
 
-let windowLog = Logger(subsystem: "dev.theonering.app", category: "windows")
+let windowLog = Logger(subsystem: "dev.wheelsmith.app", category: "windows")
 
 /// A snapshot of the display arrangement, taken on the main thread so window work can run elsewhere.
 struct DisplayLayout {
@@ -82,7 +82,7 @@ enum Windows {
         return result + otherInfos
     }
 
-    private static let watchQueue = DispatchQueue(label: "dev.theonering.windows.watch", qos: .utility)
+    private static let watchQueue = DispatchQueue(label: "dev.wheelsmith.windows.watch", qos: .utility)
     nonisolated(unsafe) private static var watched: [String] = []
     nonisolated(unsafe) private static var observers: [NSObjectProtocol] = []
 

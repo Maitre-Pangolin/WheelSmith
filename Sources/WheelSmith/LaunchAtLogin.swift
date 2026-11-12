@@ -1,9 +1,9 @@
 import Foundation
 
-/// "Always running": a per-user LaunchAgent that starts TheOneRing at login and restarts it if it crashes
+/// "Always running": a per-user LaunchAgent that starts WheelSmith at login and restarts it if it crashes
 /// (but not when you quit it from the menu — that's a clean exit).
 final class LaunchAtLogin: ObservableObject {
-    static let label = "dev.theonering.app"
+    static let label = "dev.wheelsmith.app"
 
     @Published var isEnabled: Bool {
         didSet {
@@ -49,7 +49,7 @@ final class LaunchAtLogin: ObservableObject {
             let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
             try data.write(to: plistURL, options: .atomic)
         } catch {
-            NSLog("TheOneRing: could not write LaunchAgent: \(error)")
+            NSLog("WheelSmith: could not write LaunchAgent: \(error)")
         }
     }
 

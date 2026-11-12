@@ -20,7 +20,7 @@ final class WheelPanel: NSPanel {
     }
 
     /// Only while a Prompt action waits for text. Being a non-activating panel, it takes the keyboard
-    /// without activating The One Ring, so the app you were in stays frontmost.
+    /// without activating WheelSmith, so the app you were in stays frontmost.
     var acceptsKeyboard = false
     var onEscape: (() -> Void)?
 
@@ -33,6 +33,12 @@ final class WheelPanel: NSPanel {
 
 /// Shows the wheel under the cursor on hotkey press, follows the cursor, runs the action on release.
 final class WheelController {
+    /// How long the wheel must be open before letting go in the center opens Settings. A quick
+    /// press-and-release in the center just closes it.
+    static let settingsDelay: TimeInterval = 1.0
+
+    var onOpenSettings: (() -> Void)?
+
     let model = WheelModel()
     private let panel: WheelPanel
     private var tracker = WheelTracker(geometry: WheelGeometry(childCounts: []))
@@ -106,6 +112,12 @@ final class WheelController {
         tracker.reset()
         model.hit = .center
         model.openParent = nil
+        model.settingsArmed = false
+        let generation = closeGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.settingsDelay) { [weak self] in
+            guard let self, self.isOpen, generation == self.closeGeneration, self.model.prompt == nil else { return }
+            self.model.settingsArmed = true
+        }
         loadWindows(layout: layout)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
@@ -125,13 +137,16 @@ final class WheelController {
         guard isOpen, model.prompt == nil else { return }
         tick(checkModifiers: false)
         let hit = model.hit
+        let settingsArmed = model.settingsArmed
         if let (item, parent) = promptItem(at: hit), case .prompt(let command, let placeholder) = item.action {
             beginPrompt(item, parent: parent, command: command, placeholder: placeholder)
             return
         }
         close()
         switch hit {
-        case .center, .cancel:
+        case .center:
+            if settingsArmed { onOpenSettings?() }
+        case .cancel:
             break
         case .item(let i) where i < model.items.count:
             let item = model.items[i]
@@ -186,7 +201,7 @@ final class WheelController {
         panel.ignoresMouseEvents = false
         panel.makeKeyAndOrderFront(nil)
         if !panel.isKeyWindow {
-            // Fallback: activate The One Ring to get the keyboard, and hand focus back when done.
+            // Fallback: activate WheelSmith to get the keyboard, and hand focus back when done.
             appToRestore = NSWorkspace.shared.frontmostApplication
             NSApp.activate(ignoringOtherApps: true)
             panel.makeKeyAndOrderFront(nil)
@@ -277,6 +292,7 @@ final class WheelController {
     private func close() {
         isOpen = false
         closeGeneration += 1
+        model.settingsArmed = false
         timer?.invalidate()
         timer = nil
         HotkeyManager.shared.setEscapeEnabled(false)

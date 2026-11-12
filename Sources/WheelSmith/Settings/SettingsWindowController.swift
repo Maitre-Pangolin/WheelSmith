@@ -17,7 +17,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 contentRect: NSRect(x: 0, y: 0, width: 980, height: 640),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false)
-            window.title = "The One Ring"
+            window.title = "WheelSmith"
             window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
             window.minSize = NSSize(width: 900, height: 580)

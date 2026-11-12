@@ -15,7 +15,7 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
     let m = WheelMetrics.standard
     let geo = WheelGeometry(childCounts: [2, 0, 3, 0, 0, 0, 0, 1])
 
-    @Test func centerIsDeadZone() {
+    @Test func centerIsHub() {
         #expect(geo.hit(dx: 0, dy: 0, openParent: nil) == .center)
         #expect(geo.hit(dx: 10, dy: -20, openParent: nil) == .center)
     }

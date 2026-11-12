@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import RingCore
 
-/// Owns the config: loads ~/.config/theonering/config.json, saves edits made in Settings (debounced),
+/// Owns the config: loads ~/.config/wheelsmith/config.json, saves edits made in Settings (debounced),
 /// and live-reloads when the file is edited by hand.
 final class ConfigStore: ObservableObject {
     @Published var config: RingConfig

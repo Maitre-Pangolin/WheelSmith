@@ -1,4 +1,4 @@
-# The One Ring
+# WheelSmith
 
 A radial quick-action wheel for macOS. Hold **⌥ Space** anywhere and a wheel pops up under your
 cursor. Point at a slice and let go to jump to that app or run its action.
@@ -7,7 +7,8 @@ cursor. Point at a slice and let go to jump to that app or run its action.
                Dia
       Cursor         Ostraka
   Claude                 Slack
-                ( )                  ← let go in the center, past the edge, or press Esc = cancel
+                ( ⚙ )                ← let go in the center, past the edge, or press Esc = cancel
+                                        (center after 1 second = Settings)
   iTerm                  Outlook
        Figma         Finder
             Screenshot
@@ -37,18 +38,19 @@ cursor. Point at a slice and let go to jump to that app or run its action.
   - **Bring here** (opt-in per slice): moves the app's window onto the display you're on,
     resized to fit.
 - **Discover sub-actions from menus:** select a slice in Settings and click **Add from … menus**.
-  The One Ring reads that app's menu bar and lists every command with its shortcut. Search, tick
+  WheelSmith reads that app's menu bar and lists every command with its shortcut. Search, tick
   up to 5, and each becomes a sub-action with a matching icon. See [Where sub-actions come
   from](#where-sub-actions-come-from).
 - **Screenshot** slice (default): area, full screen, or the ⌘⇧5 toolbar for video. It uses macOS's
   own shortcuts, so captures land where you've set and no extra permission is needed.
-- **Visual Settings window:** use the ◎ menu-bar icon, or open The One Ring again (Spotlight,
-  Finder) while it's running. Click
+- **Visual Settings window:** hold the wheel open for a second and let go in the center (a ⚙
+  appears there once it's ready; a quicker release in the center just closes the wheel), use the
+  ◎ menu-bar icon, or open WheelSmith again (Spotlight, Finder) while it's running. Click
   slices on the live preview to edit them. Everything is also in a plain JSON file that reloads
   live.
 - **Themes:** Midnight (default), Daylight and Liquid Glass. Every color lives in `Theme.swift`, so
   adding a theme is just adding values.
-- **Always on:** a LaunchAgent starts The One Ring at login and restarts it if it ever crashes. Quitting from
+- **Always on:** a LaunchAgent starts WheelSmith at login and restarts it if it ever crashes. Quitting from
   the menu stays quit.
 
 ## Requirements
@@ -72,15 +74,15 @@ Then install:
 ```
 
 This script:
-1. Builds a release `TheOneRing.app`, signed with that certificate (or ad-hoc if you skipped the
+1. Builds a release `WheelSmith.app`, signed with that certificate (or ad-hoc if you skipped the
    setup).
-2. Copies it to `~/Applications/TheOneRing.app`.
-3. Registers `~/Library/LaunchAgents/dev.theonering.app.plist`, which starts it now and at every login.
+2. Copies it to `~/Applications/WheelSmith.app`.
+3. Registers `~/Library/LaunchAgents/dev.wheelsmith.app.plist`, which starts it now and at every login.
 
 No `sudo` is needed. Re-run `install.sh` to upgrade after changing code: it rebuilds, replaces
 the app and restarts it. Your config isn't touched.
 
-To remove it (your config stays in `~/.config/theonering`):
+To remove it (your config stays in `~/.config/wheelsmith`):
 
 ```bash
 ./scripts/uninstall.sh
@@ -89,25 +91,25 @@ To remove it (your config stays in `~/.config/theonering`):
 ## Run without installing (development)
 
 ```bash
-swift run TheOneRing
+swift run WheelSmith
 ```
 
 Or build the bundle and open it:
 
 ```bash
-./scripts/build.sh && open build/TheOneRing.app
+./scripts/build.sh && open build/WheelSmith.app
 ```
 
 Use a throwaway config so you don't touch your real one:
 
 ```bash
-THEONERING_CONFIG=/tmp/theonering.json swift run TheOneRing
+WHEELSMITH_CONFIG=/tmp/wheelsmith.json swift run WheelSmith
 ```
 
 Render the wheel and Settings to PNGs (useful for design tweaks):
 
 ```bash
-swift run TheOneRing --snapshot /tmp/theonering-shots
+swift run WheelSmith --snapshot /tmp/wheelsmith-shots
 ```
 
 Run the unit tests (geometry, hit-testing, key parsing, config). With only the Command Line Tools
@@ -131,7 +133,7 @@ macOS remembers the Accessibility permission per *signing identity*. With ad-hoc
 build counts as a new app, so you'd have to re-grant after each reinstall.
 `./scripts/setup-signing.sh` fixes this once and for all:
 
-- It creates a self-signed certificate, **TheOneRing Local Signing**, in your login keychain.
+- It creates a self-signed certificate, **WheelSmith Local Signing**, in your login keychain.
 - It trusts that certificate for code signing only. macOS asks for your password here.
 - `build.sh` and `install.sh` then use it automatically.
 
@@ -143,16 +145,16 @@ The first build may ask whether `codesign` can use the key: click **Always Allow
 | Order | Identity | When it's used |
 |---|---|---|
 | 1 | `SIGN_IDENTITY="…"` | Set it to use, for example, an "Apple Development: …" certificate |
-| 2 | TheOneRing Local Signing | Created by `setup-signing.sh` |
+| 2 | WheelSmith Local Signing | Created by `setup-signing.sh` |
 | 3 | Ad-hoc | Fallback; a hint is printed |
 
-To remove the certificate: Keychain Access → login → My Certificates → delete "TheOneRing Local
+To remove the certificate: Keychain Access → login → My Certificates → delete "WheelSmith Local
 Signing".
 
 ## Configuration
 
-Settings writes to `~/.config/theonering/config.json`. You can also edit the file by hand; changes apply
-as soon as you save. If the JSON is invalid, The One Ring keeps the previous config and shows a ⚠︎ in the
+Settings writes to `~/.config/wheelsmith/config.json`. You can also edit the file by hand; changes apply
+as soon as you save. If the JSON is invalid, WheelSmith keeps the previous config and shows a ⚠︎ in the
 menu bar.
 
 ```jsonc
@@ -227,7 +229,7 @@ Sources/
     KeyCombo.swift     "cmd+shift+n" parsing / display
     MenuPath.swift     menu title matching, search, icon guessing
     RingLayout.swift   how many windows and sub-actions the outer ring shows
-  TheOneRing/          the app
+  WheelSmith/          the app
     AppDelegate.swift  menu-bar item, wiring
     HotkeyManager.swift  Carbon hotkey press/release (+ Esc while open)
     WheelController.swift  overlay NSPanel, 120 Hz pointer tracking while open, runs actions on release
@@ -241,9 +243,9 @@ Sources/
     Settings/          visual editor, including the menu browser sheet
 ```
 
-**Speed:** The One Ring is always resident. The overlay panel is built and rendered once at launch, so
+**Speed:** WheelSmith is always resident. The overlay panel is built and rendered once at launch, so
 pressing the hotkey only moves an existing window and fades it in. Icons are resolved ahead of
-time. Pointer polling runs only while the wheel is open, so The One Ring uses no CPU when idle.
+time. Pointer polling runs only while the wheel is open, so WheelSmith uses no CPU when idle.
 
 ## Troubleshooting
 
@@ -257,15 +259,16 @@ time. Pointer polling runs only while the wheel is open, so The One Ring uses no
 - **No ◎ icon in the menu bar.** On notched MacBooks a full menu bar pushes the left-most
   icons, the newest ones, off-screen. To fix it, turn off icons you don't need in *System
   Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings by
-  opening The One Ring again from Spotlight. There's a Quit
+  holding the wheel open for a second and letting go in the center, or by opening WheelSmith again
+  from Spotlight. There's a Quit
   button under Settings → General.
 - **Windows on other Spaces** (other desktops, full-screen windows) are listed too, with a full-screen
   icon for full-screen ones; picking one switches to its Space. macOS's Accessibility API only reports
-  windows on the Spaces you're looking at, so The One Ring remembers each window once it has been on
+  windows on the Spaces you're looking at, so WheelSmith remembers each window once it has been on
   screen (it checks your slices' apps whenever you switch Space or app), and also searches for the
   others the way window switchers like AltTab do. That search is quick for most apps but can't reach
   windows of apps that have been running a long time (iTerm and Dia often): those appear once you've
-  visited them after The One Ring started. Both rely on undocumented macOS calls; if a future macOS
+  visited them after WheelSmith started. Both rely on undocumented macOS calls; if a future macOS
   removes them, only these windows disappear from the ring. Windows can't be moved between Spaces, so
   Bring here leaves them where they are.
   Full-screen windows can't be moved by Bring here.

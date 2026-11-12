@@ -9,6 +9,8 @@ final class WheelModel: ObservableObject {
     @Published var hit: WheelHit = .center
     @Published var openParent: Int?
     @Published var visible = false
+    /// The wheel has been open long enough that letting go in the center opens Settings.
+    @Published var settingsArmed = false
     /// Open windows per slice index (filled shortly after the wheel opens).
     @Published var windows: [Int: [WindowInfo]] = [:]
     /// Display the wheel is on, and how many there are (for the window badges).
@@ -44,7 +46,7 @@ struct LiveWheelView: View {
                         openParent: model.openParent, visible: model.visible,
                         opaqueBackdrop: model.opaqueBackdrop, windows: model.windows,
                         hereDisplay: model.hereDisplay, displayCount: model.displayCount,
-                        dimmed: model.prompt != nil)
+                        dimmed: model.prompt != nil, settingsArmed: model.settingsArmed)
             if let prompt = model.prompt {
                 PromptCard(model: prompt, opaqueBackdrop: model.opaqueBackdrop)
                     .offset(x: model.promptOffset)
@@ -70,6 +72,8 @@ struct WheelCanvas: View {
     var displayCount = 1
     /// Recedes behind a prompt's text field.
     var dimmed = false
+    /// Letting go in the center opens Settings (after the wheel has been open a moment).
+    var settingsArmed = false
     var metrics = WheelMetrics.standard
 
     private func ring(_ i: Int) -> Ring { Ring(item: items[i], windows: windows[i] ?? []) }
@@ -95,6 +99,12 @@ struct WheelCanvas: View {
         .animation(.spring(response: 0.24, dampingFraction: 0.8), value: visible)
         .animation(spring, value: hit)
         .animation(spring, value: openParent)
+        .animation(.easeOut(duration: 0.18), value: settingsArmed)
+    }
+
+    /// Liquid Glass themes give each sub-action its own pane of glass, like the disk.
+    private var glassSubActions: Bool {
+        if case .glass = theme.backdrop, !opaqueBackdrop { true } else { false }
     }
 
     // MARK: Disk
@@ -142,7 +152,7 @@ struct WheelCanvas: View {
             if ring(i).count > 0 {
                 // Small dot on the rim hinting there are sub-actions or windows.
                 Circle()
-                    .fill(active ? theme.text : theme.subtext)
+                    .fill(active ? theme.onHover : theme.subtext)
                     .frame(width: 4, height: 4)
                     .position(Self.point(center, metrics.ringOuter - 12, size))
                     .opacity(selected ? 0 : 1)
@@ -162,7 +172,13 @@ struct WheelCanvas: View {
             ZStack {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { j, entry in
                     let selected = hit == .child(p, j)
+                    let outer = selected ? metrics.subOuter + 6 : metrics.subOuter
                     ZStack {
+                        if glassSubActions {
+                            GlassPane(shape: AnnularSector(center: angles[j], span: metrics.childSpan,
+                                                           inner: metrics.subInner, outer: outer),
+                                      dark: theme.isDark)
+                        }
                         AnnularSector(center: angles[j], span: metrics.childSpan, inner: metrics.subInner,
                                       outer: selected ? metrics.subOuter + 6 : metrics.subOuter)
                             .fill(selected ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover,
@@ -191,11 +207,13 @@ struct WheelCanvas: View {
 
     private var hub: some View {
         let d = metrics.hubRadius * 2
-        // The center is a dead zone: letting go there closes the wheel, like letting go outside it.
+        // Letting go in the center closes the wheel, unless it has been open long enough to arm Settings.
+        let onSettings = settingsArmed && hit == .center
         return ZStack {
             Circle()
-                .fill(theme.hub)
-                .overlay(Circle().strokeBorder(theme.stroke, lineWidth: 1))
+                .fill(onSettings ? theme.hubHover : theme.hub)
+                .overlay(Circle().strokeBorder(onSettings ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover, startPoint: .top, endPoint: .bottom))
+                                                          : AnyShapeStyle(theme.stroke), lineWidth: onSettings ? 1.5 : 1))
             hubContent
                 .padding(8)
                 .frame(width: d, height: d)
@@ -207,7 +225,14 @@ struct WheelCanvas: View {
     private var hubContent: some View {
         switch hit {
         case .center:
-            EmptyView()
+            if settingsArmed {
+                VStack(spacing: 2) {
+                    Image(systemName: "gearshape.fill").font(.system(size: 15, weight: .semibold))
+                    Text("Settings").font(.system(size: 9, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(theme.text)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
         case .item(let i) where i < items.count:
             hubLabel(items[i].label, caption: nil)
         case .child(let p, let j) where p < items.count && j < ring(p).count:
@@ -234,18 +259,18 @@ struct WheelCanvas: View {
             switch entry {
             case .action(let child):
                 IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 22,
-                         tint: selected ? .white : theme.symbol)
+                         tint: selected ? theme.onHover : theme.symbol)
             case .window(let w):
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: w.isMinimized ? "minus.rectangle" : w.isFullScreen ? "arrow.up.left.and.arrow.down.right.square" : "macwindow")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(selected ? .white : theme.symbol)
+                        .foregroundStyle(selected ? theme.onHover : theme.symbol)
                         .frame(width: 26, height: 22)
                     if displayCount > 1, let d = w.displayIndex {
                         let here = d == hereDisplay
                         Text("\(d + 1)")
                             .font(.system(size: 8, weight: .heavy, design: .rounded))
-                            .foregroundStyle(here ? Color.white : theme.text)
+                            .foregroundStyle(here ? theme.onHover : theme.text)
                             .frame(width: 12, height: 12)
                             .background(Circle().fill(here ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover, startPoint: .top, endPoint: .bottom))
                                                            : AnyShapeStyle(theme.stroke.opacity(2))))
@@ -255,7 +280,7 @@ struct WheelCanvas: View {
             }
             Text(entry.label)
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(selected ? .white : theme.subtext)
+                .foregroundStyle(selected ? theme.onHover : theme.subtext)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: 92)
@@ -364,6 +389,20 @@ struct AnnularSector: Shape {
 private extension Path {
     func normalized(eoFill: Bool) -> Path {
         eoFill ? Path(cgPath.normalized(using: .evenOdd)) : self
+    }
+}
+
+/// macOS 26 Liquid Glass in any shape; nothing on older systems.
+struct GlassPane<S: Shape>: View {
+    let shape: S
+    let dark: Bool
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            Color.clear
+                .glassEffect(.regular, in: shape)
+                .environment(\.colorScheme, dark ? .dark : .light)
+        }
     }
 }
 

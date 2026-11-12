@@ -185,7 +185,7 @@ struct MenuBrowserSheet: View {
             ContentUnavailableView {
                 Label("Accessibility needed", systemImage: "lock.shield")
             } description: {
-                Text("The One Ring reads and clicks other apps' menus through Accessibility. Grant it, and this list loads by itself.")
+                Text("WheelSmith reads and clicks other apps' menus through Accessibility. Grant it, and this list loads by itself.")
             } actions: {
                 Button("Grant Accessibility…") { ActionRunner.requestAccessibility() }
             }

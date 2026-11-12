@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Only one TheOneRing at a time (e.g. LaunchAgent + manual open).
+        // Only one WheelSmith at a time (e.g. LaunchAgent + manual open).
         if let id = Bundle.main.bundleIdentifier,
            NSRunningApplication.runningApplications(withBundleIdentifier: id).count > 1 {
             NSApp.terminate(nil)
@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store = ConfigStore()
         wheel = WheelController()
         settings = SettingsWindowController(store: store, launchAtLogin: launchAtLogin)
+        wheel.onOpenSettings = { [weak self] in self?.settings.show() }
 
         let hotkeys = HotkeyManager.shared
         hotkeys.onPress = { [weak self] in self?.wheel.open() }
@@ -58,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = statusItem?.button else { return }
         let failed = HotkeyManager.shared.registrationError != nil || store.lastError != nil
         let image = NSImage(systemSymbolName: failed ? "exclamationmark.circle" : "circle.circle",
-                            accessibilityDescription: "The One Ring")
+                            accessibilityDescription: "WheelSmith")
         image?.isTemplate = true
         button.image = image
     }
@@ -66,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let hotkey = KeyCombo(store.config.hotkey)?.display ?? store.config.hotkey
-        let header = NSMenuItem(title: "The One Ring — hold \(hotkey)", action: nil, keyEquivalent: "")
+        let header = NSMenuItem(title: "WheelSmith — hold \(hotkey)", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         for problem in [HotkeyManager.shared.registrationError, store.lastError].compactMap({ $0 }) {
@@ -83,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.isEnabled = launchAtLogin.isAvailable
         menu.addItem(login)
         menu.addItem(.separator())
-        menu.addItem(item("Quit The One Ring", #selector(quit), key: "q"))
+        menu.addItem(item("Quit WheelSmith", #selector(quit), key: "q"))
         updateStatusIcon()
     }
 
@@ -98,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleLaunchAtLogin() { launchAtLogin.isEnabled.toggle() }
     @objc private func quit() { NSApp.terminate(nil) }
 
-    /// Opening the app again (Spotlight, Finder, `open -a TheOneRing`) shows Settings. This is the way
+    /// Opening the app again (Spotlight, Finder, `open -a WheelSmith`) shows Settings. This is the way
     /// in when the menu-bar icon is hidden, e.g. pushed behind the notch on a full menu bar.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         settings.show()

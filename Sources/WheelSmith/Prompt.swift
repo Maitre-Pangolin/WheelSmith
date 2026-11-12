@@ -30,12 +30,12 @@ final class PromptModel: ObservableObject {
 }
 
 enum PromptRunner {
-    /// `/bin/zsh -lc <command> theonering <argument>`: the text is `$1`, so it's never parsed as shell code.
+    /// `/bin/zsh -lc <command> wheelsmith <argument>`: the text is `$1`, so it's never parsed as shell code.
     /// Calls back on the main thread with the non-empty output lines (stdout and stderr together).
     static func run(_ command: String, argument: String, completion: @escaping (Bool, [String]) -> Void) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", command, "theonering", argument]
+        process.arguments = ["-lc", command, "wheelsmith", argument]
         process.environment = ActionRunner.shellEnvironment
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         let pipe = Pipe()
@@ -45,7 +45,7 @@ enum PromptRunner {
         do {
             try process.run()
         } catch {
-            NSLog("TheOneRing: prompt command failed to start: \(error)")
+            NSLog("WheelSmith: prompt command failed to start: \(error)")
             completion(false, ["Couldn't run /bin/zsh"])
             return
         }
@@ -57,7 +57,7 @@ enum PromptRunner {
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
             let ok = process.terminationStatus == 0
-            if !ok { NSLog("TheOneRing: prompt command exited \(process.terminationStatus): \(lines.joined(separator: " | "))") }
+            if !ok { NSLog("WheelSmith: prompt command exited \(process.terminationStatus): \(lines.joined(separator: " | "))") }
             DispatchQueue.main.async { completion(ok, lines) }
         }
     }

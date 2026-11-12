@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# Builds TheOneRing, installs it to ~/Applications, and registers a LaunchAgent so it starts at login
+# Builds WheelSmith, installs it to ~/Applications, and registers a LaunchAgent so it starts at login
 # and is restarted if it ever crashes. Re-run any time to upgrade. No sudo needed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-LABEL="dev.theonering.app"
-DEST="$HOME/Applications/TheOneRing.app"
+LABEL="dev.wheelsmith.app"
+DEST="$HOME/Applications/WheelSmith.app"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$(id -u)"
 
 ./scripts/build.sh
 
-echo "→ Stopping any running The One Ring"
+echo "→ Stopping any running WheelSmith"
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
-pkill -x TheOneRing 2>/dev/null || true
+pkill -x WheelSmith 2>/dev/null || true
 
 echo "→ Installing to $DEST"
 mkdir -p "$HOME/Applications"
 rm -rf "$DEST"
-cp -R build/TheOneRing.app "$DEST"
+cp -R build/WheelSmith.app "$DEST"
 
 echo "→ Registering LaunchAgent $PLIST"
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -28,7 +28,7 @@ cat > "$PLIST" <<EOF
 <plist version="1.0">
 <dict>
     <key>Label</key><string>$LABEL</string>
-    <key>ProgramArguments</key><array><string>$DEST/Contents/MacOS/TheOneRing</string></array>
+    <key>ProgramArguments</key><array><string>$DEST/Contents/MacOS/WheelSmith</string></array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
     <key>ProcessType</key><string>Interactive</string>
@@ -41,5 +41,5 @@ launchctl bootstrap "$DOMAIN" "$PLIST"
 # The app also auto-enables launch-at-login on first run; mark it as done so it doesn't re-write the file.
 defaults write "$LABEL" didOfferLaunchAtLogin -bool true
 
-echo "✓ The One Ring is running. Hold ⌥ Space anywhere."
-echo "  Config: ~/.config/theonering/config.json   Menu bar: ◎"
+echo "✓ WheelSmith is running. Hold ⌥ Space anywhere."
+echo "  Config: ~/.config/wheelsmith/config.json   Menu bar: ◎"

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import RingCore
 
-/// `TheOneRing --snapshot <dir>`: renders the wheel in a few states and the Settings window to PNGs.
+/// `WheelSmith --snapshot <dir>`: renders the wheel in a few states and the Settings window to PNGs.
 /// Uses an opaque backdrop because behind-window blur can't be captured off-screen.
 @MainActor
 enum Snapshot {
@@ -13,27 +13,30 @@ enum Snapshot {
         let config = DefaultConfig.config
         IconCache.shared.preload(config.items)
 
-        let states: [(String, String, WheelHit, Int?)] = [
-            ("wheel-midnight-center", "midnight", .center, nil),
-            ("wheel-midnight-slice", "midnight", .item(7), 7),
-            ("wheel-midnight-sub", "midnight", .child(3, 2), 3),
-            ("wheel-daylight-sub", "daylight", .child(5, 0), 5),
-            ("wheel-glass-slice", "glass", .item(4), 4),
+        let states: [(String, String, WheelHit, Int?, Bool)] = [
+            ("wheel-midnight-center", "midnight", .center, nil, false),
+            ("wheel-midnight-settings", "midnight", .center, nil, true),
+            ("wheel-midnight-slice", "midnight", .item(7), 7, false),
+            ("wheel-midnight-sub", "midnight", .child(3, 2), 3, false),
+            ("wheel-daylight-sub", "daylight", .child(5, 0), 5, false),
+            ("wheel-glass-slice", "glass", .item(4), 4, false),
+            ("wheel-glass-sub", "glass", .child(3, 1), 3, false),
         ]
-        for (name, themeId, hit, parent) in states {
+        for (name, themeId, hit, parent, armed) in states {
             let theme = Theme.named(themeId)
             let view = ZStack {
                 LinearGradient(colors: theme.isDark
                                ? [Color(red: 0.13, green: 0.09, blue: 0.27), Color(red: 0.02, green: 0.04, blue: 0.11)]
                                : [Color(red: 0.95, green: 0.91, blue: 0.99), Color(red: 0.84, green: 0.91, blue: 0.99)],
                                startPoint: .top, endPoint: .bottom)
-                WheelCanvas(items: config.items, theme: theme, hit: hit, openParent: parent, opaqueBackdrop: true)
+                WheelCanvas(items: config.items, theme: theme, hit: hit, openParent: parent, opaqueBackdrop: true,
+                            settingsArmed: armed)
             }
             let size = WheelMetrics.standard.canvasSize
             render(view, size: CGSize(width: size, height: size), to: dir.appendingPathComponent(name + ".png"))
         }
 
-        let tmpConfig = FileManager.default.temporaryDirectory.appendingPathComponent("theonering-snapshot/config.json")
+        let tmpConfig = FileManager.default.temporaryDirectory.appendingPathComponent("wheelsmith-snapshot/config.json")
         try? FileManager.default.removeItem(at: tmpConfig)
         let store = ConfigStore(url: tmpConfig)
         render(SettingsView(store: store, launchAtLogin: LaunchAtLogin()),
@@ -58,7 +61,7 @@ enum Snapshot {
             WindowInfo(element: dummy, pid: 0, windowID: 0, title: title, frame: .zero, isMinimized: minimized,
                        isFullScreen: fullScreen, onCurrentSpace: !fullScreen, displayIndex: display)
         }
-        let itermWindows = [window("~/perso/TheOneRing", display: 0), window("ssh prod-api", display: 1, fullScreen: true),
+        let itermWindows = [window("~/perso/WheelSmith", display: 0), window("ssh prod-api", display: 1, fullScreen: true),
                             window("htop", display: 1, minimized: true)]
         let midnight = Theme.named("midnight")
         let windowRing = ZStack {

@@ -82,7 +82,7 @@ enum ActionRunner {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
         NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
-            if let error { NSLog("TheOneRing: could not open \(bundleId): \(error)") }
+            if let error { NSLog("WheelSmith: could not open \(bundleId): \(error)") }
             // Activation can reorder windows; make sure the chosen one ends up in front.
             if let window { DispatchQueue.global(qos: .userInitiated).async { Windows.raise(window) } }
             if let completion { DispatchQueue.main.async(execute: completion) }
@@ -129,7 +129,7 @@ enum ActionRunner {
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { NSLog("TheOneRing: shell failed: \(error)"); NSSound.beep() }
+        do { try process.run() } catch { NSLog("WheelSmith: shell failed: \(error)"); NSSound.beep() }
     }
 
     // MARK: Keyboard shortcuts
@@ -171,7 +171,7 @@ enum ActionRunner {
             DispatchQueue.global(qos: .userInitiated).async {
                 if !MenuBar.press(path: path, pid: pid) {
                     DispatchQueue.main.async {
-                        NSLog("TheOneRing: menu item not found: \(MenuPath.display(path))")
+                        NSLog("WheelSmith: menu item not found: \(MenuPath.display(path))")
                         NSSound.beep()
                     }
                 }
@@ -213,7 +213,7 @@ enum ActionRunner {
         let deadline = Date().addingTimeInterval(timeout)
         func check() {
             if condition() { then(); return }
-            guard Date() < deadline else { NSLog("TheOneRing: timed out waiting for the target app"); return }
+            guard Date() < deadline else { NSLog("WheelSmith: timed out waiting for the target app"); return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03, execute: check)
         }
         check()

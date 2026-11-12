@@ -2,7 +2,7 @@ import Foundation
 
 /// Radii (points) of the wheel's rings, from the center outwards.
 public struct WheelMetrics: Equatable, Sendable {
-    /// Center hub: releasing here opens Settings.
+    /// Center hub: releasing here closes the wheel, or opens Settings once it has been open a second.
     public var hubRadius: Double = 44
     /// Slice band.
     public var ringInner: Double = 52

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>dev.theonering.app</string>
+    <string>dev.wheelsmith.app</string>
     <key>CFBundleName</key>
-    <string>TheOneRing</string>
+    <string>WheelSmith</string>
     <key>CFBundleDisplayName</key>
-    <string>The One Ring</string>
+    <string>WheelSmith</string>
     <key>CFBundleExecutable</key>
-    <string>TheOneRing</string>
+    <string>WheelSmith</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

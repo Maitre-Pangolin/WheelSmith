@@ -265,7 +265,7 @@ struct GeneralPane: View {
                 Toggle("Launch at login, and restart if it ever crashes", isOn: $launchAtLogin.isEnabled)
                     .disabled(!launchAtLogin.isAvailable)
                 if !launchAtLogin.isAvailable {
-                    Text("Available when running the installed TheOneRing.app.").font(.caption).foregroundStyle(.secondary)
+                    Text("Available when running the installed WheelSmith.app.").font(.caption).foregroundStyle(.secondary)
                 }
                 LabeledContent("Accessibility") {
                     HStack {
@@ -277,10 +277,10 @@ struct GeneralPane: View {
                 Text("Only needed for Menu and Shortcut actions. App, URL and Shell actions work without it.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Text("Can't see the ◎ icon? A full menu bar hides icons behind the notch. Open The One Ring again from Spotlight to get back here.")
+                    Text("Can't see the ◎ icon? A full menu bar hides icons behind the notch. Open WheelSmith again from Spotlight to get back here.")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Quit The One Ring") { NSApp.terminate(nil) }
+                    Button("Quit WheelSmith") { NSApp.terminate(nil) }
                 }
             }
 

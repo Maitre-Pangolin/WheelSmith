@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Builds build/TheOneRing.app (release). Signs with a stable identity when one is available.
+# Builds build/WheelSmith.app (release). Signs with a stable identity when one is available.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIGURATION="${CONFIGURATION:-release}"
-APP="build/TheOneRing.app"
+APP="build/WheelSmith.app"
 
 echo "→ swift build ($CONFIGURATION)"
 swift build -c "$CONFIGURATION"
@@ -12,14 +12,14 @@ BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/TheOneRing" "$APP/Contents/MacOS/TheOneRing"
+cp "$BIN_DIR/WheelSmith" "$APP/Contents/MacOS/WheelSmith"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 
 # Signing identity, in order of preference:
 #   1. $SIGN_IDENTITY, if you set it (e.g. an "Apple Development: …" certificate)
-#   2. "TheOneRing Local Signing", created once by ./scripts/setup-signing.sh
+#   2. "WheelSmith Local Signing", created once by ./scripts/setup-signing.sh
 #   3. ad-hoc ("-"): runs fine, but macOS forgets the Accessibility grant on every rebuild
-LOCAL_IDENTITY="TheOneRing Local Signing"
+LOCAL_IDENTITY="WheelSmith Local Signing"
 KEYCHAIN_ARGS=()
 if [[ -n "${SIGNING_KEYCHAIN:-}" ]]; then KEYCHAIN_ARGS=(--keychain "$SIGNING_KEYCHAIN"); fi
 

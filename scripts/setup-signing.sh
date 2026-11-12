@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup: creates a self-signed code-signing certificate "TheOneRing Local Signing" in your
+# One-time setup: creates a self-signed code-signing certificate "WheelSmith Local Signing" in your
 # login keychain and trusts it for code signing. build.sh / install.sh pick it up automatically.
 #
 # Why: with ad-hoc signing every build looks like a brand-new app to macOS, so the Accessibility
@@ -7,10 +7,10 @@
 # build as the same app and the permission sticks.
 #
 # The certificate is only used to sign this app on this Mac and is trusted for code signing only.
-# To remove it: Keychain Access → login → My Certificates → delete "TheOneRing Local Signing".
+# To remove it: Keychain Access → login → My Certificates → delete "WheelSmith Local Signing".
 set -euo pipefail
 
-NAME="TheOneRing Local Signing"
+NAME="WheelSmith Local Signing"
 KEYCHAIN="${SIGNING_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}"
 
 is_valid() {
@@ -43,7 +43,7 @@ EOF
     # macOS's own LibreSSL writes a PKCS#12 that `security import` understands
     # (Homebrew's OpenSSL 3 would need -legacy).
     OPENSSL=/usr/bin/openssl
-    P12_PASS="theonering-$$-$RANDOM"
+    P12_PASS="wheelsmith-$$-$RANDOM"
     echo "→ Generating certificate (valid 10 years)"
     "$OPENSSL" req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$WORK/cert.cnf" \
         -keyout "$WORK/key.pem" -out "$WORK/cert.pem" 2>/dev/null
