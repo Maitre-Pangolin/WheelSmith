@@ -58,11 +58,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
         let failed = HotkeyManager.shared.registrationError != nil || store.lastError != nil
-        let image = NSImage(systemSymbolName: failed ? "exclamationmark.circle" : "circle.circle",
-                            accessibilityDescription: "WheelSmith")
+        let image = failed
+            ? NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: "WheelSmith")
+            : Self.logoImage
         image?.isTemplate = true
         button.image = image
     }
+
+    /// The ring-and-raised-segment mark, drawn as a vector so it stays crisp at any scale.
+    private static let logoImage: NSImage = {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            ctx.addPath(LogoMark().path(in: rect))
+            ctx.setFillColor(NSColor.black.cgColor)
+            ctx.fillPath()
+            return true
+        }
+        image.accessibilityDescription = "WheelSmith"
+        return image
+    }()
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()

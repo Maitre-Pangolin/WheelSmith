@@ -45,7 +45,7 @@ cursor. Point at a slice and let go to jump to that app or run its action.
   own shortcuts, so captures land where you've set and no extra permission is needed.
 - **Visual Settings window:** hold the wheel open for a second and let go in the center (a ⚙
   appears there once it's ready; a quicker release in the center just closes the wheel), use the
-  ◎ menu-bar icon, or open WheelSmith again (Spotlight, Finder) while it's running. Click
+  menu-bar icon (a ring with one raised segment), or open WheelSmith again (Spotlight, Finder) while it's running. Click
   slices on the live preview to edit them. Everything is also in a plain JSON file that reloads
   live.
 - **Themes:** Midnight (default), Daylight and Liquid Glass. Every color lives in `Theme.swift`, so
@@ -99,6 +99,10 @@ Or build the bundle and open it:
 ```bash
 ./scripts/build.sh && open build/WheelSmith.app
 ```
+
+The menu bar icon and the app icon share one shape, `LogoMark` in
+`Sources/WheelSmith/LogoMark.swift`. After changing it, run `./scripts/make-icon.sh` to regenerate
+`Support/AppIcon.icns`.
 
 Use a throwaway config so you don't touch your real one:
 
@@ -251,12 +255,12 @@ time. Pointer polling runs only while the wheel is open, so WheelSmith uses no C
 
 
 - **Nothing happens on ⌥ Space.** Another app may own that shortcut (Raycast, ChatGPT and some
-  launchers use it), and the ◎ menu shows a ⚠︎ when registration fails. Pick another hotkey in
+  launchers use it), and the menu bar icon shows a ⚠︎ when registration fails. Pick another hotkey in
   Settings → General, or free it up in the other app.
 - **A Menu or Shortcut sub-action does nothing** (you hear a beep). Grant Accessibility (see
   Permissions). For Menu actions, the app may have renamed the item: open the sub-action in
   Settings and choose it again.
-- **No ◎ icon in the menu bar.** On notched MacBooks a full menu bar pushes the left-most
+- **No WheelSmith icon in the menu bar.** On notched MacBooks a full menu bar pushes the left-most
   icons, the newest ones, off-screen. To fix it, turn off icons you don't need in *System
   Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings by
   holding the wheel open for a second and letting go in the center, or by opening WheelSmith again

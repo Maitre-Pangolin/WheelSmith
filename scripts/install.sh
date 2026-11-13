@@ -42,4 +42,4 @@ launchctl bootstrap "$DOMAIN" "$PLIST"
 defaults write "$LABEL" didOfferLaunchAtLogin -bool true
 
 echo "✓ WheelSmith is running. Hold ⌥ Space anywhere."
-echo "  Config: ~/.config/wheelsmith/config.json   Menu bar: ◎"
+echo "  Config: ~/.config/wheelsmith/config.json   Menu bar: the ring icon"
