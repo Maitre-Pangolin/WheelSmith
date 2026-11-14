@@ -59,7 +59,12 @@ struct LiveWheelView: View {
     }
 }
 
-/// Stateless drawing of the wheel. Reused by the overlay and the Settings preview.
+/// Stateless drawing of the wheel (apart from where the rails last pointed). Reused by the overlay,
+/// the Settings preview and the snapshot renderer.
+///
+/// Layout, from the center out: hub, inner rail, slice wedges with their icons, outer rail,
+/// sub-action wedges, sub-action rail. The hovered slice gets a quiet fill; the rails carry the
+/// selection and turn to follow the pointer.
 struct WheelCanvas: View {
     let items: [WheelItem]
     let theme: Theme
@@ -74,133 +79,232 @@ struct WheelCanvas: View {
     var dimmed = false
     /// Letting go in the center opens Settings (after the wheel has been open a moment).
     var settingsArmed = false
+    /// How much of the Settings arm ring to draw, for still renders; nil fills it over a second after opening.
+    var armProgress: Double? = nil
     var metrics = WheelMetrics.standard
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Unwrapped rail angles, so a rail always turns the short way round. Nil until the first hover.
+    @State private var innerAngle: Double?
+    @State private var outerAngle: Double?
 
     private func ring(_ i: Int) -> Ring { Ring(item: items[i], windows: windows[i] ?? []) }
     private var geometry: WheelGeometry {
         WheelGeometry(childCounts: items.indices.map { ring($0).count }, metrics: metrics)
     }
     private var size: CGFloat { metrics.canvasSize }
-    private var spring: Animation { .spring(response: 0.22, dampingFraction: 0.78) }
+    private var focus: Int? { hit.itemIndex.flatMap { $0 < items.count ? $0 : nil } }
+    private var onChild: Bool { if case .child = hit { true } else { false } }
+    /// Icons sit a little inside the middle of the wedge band.
+    private var tileRadius: Double { (metrics.ringInner + metrics.ringOuter) / 2 - 3 }
+
+    // MARK: Motion
+
+    /// Rails turn with one small overshoot, then settle.
+    private var railTurn: Animation? { reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.75) }
+    /// Rails change length and radius without overshoot.
+    private var railResize: Animation? { reduceMotion ? nil : .smooth(duration: 0.38) }
+    private var fade: Animation { .easeOut(duration: 0.16) }
 
     var body: some View {
         ZStack {
-            subRing
             disk
+            wedges
+            innerRail
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                slice(index, item)
+                tile(index, item)
             }
+            subActions
+            outerRails
+            armRing
             hub
         }
         .opacity(dimmed ? 0.55 : 1)
         .frame(width: size, height: size)
-        .scaleEffect(visible ? 1 : 0.82)
+        .scaleEffect(visible || reduceMotion ? 1 : 0.95)
         .opacity(visible ? 1 : 0)
-        .animation(.spring(response: 0.24, dampingFraction: 0.8), value: visible)
-        .animation(spring, value: hit)
-        .animation(spring, value: openParent)
-        .animation(.easeOut(duration: 0.18), value: settingsArmed)
+        .animation(visible ? .spring(response: 0.28, dampingFraction: 0.72) : .easeOut(duration: 0.1), value: visible)
+        .animation(.easeOut(duration: 0.15), value: openParent)
+        .onChange(of: hit) { old, new in turnRails(from: old, to: new) }
+        .onChange(of: visible) { _, now in
+            if !now { innerAngle = nil; outerAngle = nil }
+        }
     }
+
+    // MARK: Rails
+
+    /// Where the inner and outer rails point for a hit, if they're shown at all.
+    private func railTargets(_ hit: WheelHit) -> (inner: Double, outer: Double)? {
+        switch hit {
+        case .item(let i) where i < items.count:
+            let c = geometry.sliceCenter(i)
+            return (c, c)
+        case .child(let p, let j) where p < items.count:
+            let angles = geometry.childAngles(parent: p)
+            guard j < angles.count else { return nil }
+            return (geometry.sliceCenter(p), angles[j])
+        default:
+            return nil
+        }
+    }
+
+    private func turnRails(from old: WheelHit, to new: WheelHit) {
+        guard let target = railTargets(new) else { return } // hidden rails stay where they were
+        let previous = railTargets(old)
+        innerAngle = Self.unwrap(target.inner, near: innerAngle ?? previous?.inner ?? target.inner)
+        outerAngle = Self.unwrap(target.outer, near: outerAngle ?? previous?.outer ?? target.outer)
+    }
+
+    private var railStroke: StrokeStyle { StrokeStyle(lineWidth: 2.5, lineCap: .round) }
+
+    /// Under the hovered slice, just outside the hub. Hidden while a sub-action is hovered.
+    private var innerRail: some View {
+        let angle = innerAngle ?? railTargets(hit)?.inner ?? 0
+        return RailArc(radius: metrics.innerRail, span: max(geometry.sliceSpan - 0.24, 0.1))
+            .stroke(theme.rail, style: railStroke)
+            .frame(width: size, height: size)
+            .rotationEffect(.radians(angle))
+            .animation(railTurn, value: angle)
+            .opacity(focus != nil && !onChild ? 1 : 0)
+            .animation(fade, value: focus != nil && !onChild)
+    }
+
+    /// Outside the hovered slice. On a sub-action it narrows and moves inside it, and a third rail
+    /// grows out beyond the sub-action.
+    private var outerRails: some View {
+        let angle = outerAngle ?? railTargets(hit)?.outer ?? 0
+        let span = onChild ? metrics.childSpan - 0.08 : max(geometry.sliceSpan - 0.1, 0.1)
+        return ZStack {
+            RailArc(radius: metrics.outerRail, span: span)
+                .stroke(theme.rail, style: railStroke)
+                .animation(railResize, value: span)
+            RailArc(radius: metrics.subRail, span: metrics.childSpan - 0.08)
+                .stroke(theme.rail, style: railStroke)
+                .frame(width: size, height: size)
+                .scaleEffect(onChild ? 1 : metrics.outerRail / metrics.subRail)
+                .opacity(onChild ? 1 : 0)
+                .animation(railResize ?? fade, value: onChild)
+        }
+        .frame(width: size, height: size)
+        .rotationEffect(.radians(angle))
+        .animation(railTurn, value: angle)
+        .opacity(focus != nil ? 1 : 0)
+        .animation(fade, value: focus != nil)
+    }
+
+    /// Fills around the hub over the first second; once full, letting go in the center opens Settings.
+    private var armRing: some View {
+        let animated = armProgress == nil && !reduceMotion
+        let progress = armProgress ?? (settingsArmed ? 1 : (animated && visible ? 1 : 0))
+        return Circle()
+            .trim(from: 0, to: progress)
+            .stroke(theme.rail, style: railStroke)
+            .rotationEffect(.degrees(-90))
+            .frame(width: metrics.innerRail * 2, height: metrics.innerRail * 2)
+            .animation(animated && visible ? .timingCurve(0.4, 0, 0.2, 1, duration: WheelController.settingsDelay) : nil,
+                       value: visible)
+            .animation(reduceMotion ? fade : nil, value: settingsArmed)
+            .opacity(hit == .center ? 1 : 0)
+            .animation(fade, value: hit == .center)
+    }
+
+    // MARK: Disk & wedges
 
     /// Liquid Glass themes give each sub-action its own pane of glass, like the disk.
     private var glassSubActions: Bool {
         if case .glass = theme.backdrop, !opaqueBackdrop { true } else { false }
     }
 
-    // MARK: Disk
-
     private var disk: some View {
-        let d = metrics.ringOuter * 2
+        let d = metrics.diskRadius * 2
         return ZStack {
             Backdrop(theme: theme, opaque: opaqueBackdrop, shape: Circle())
             Circle().fill(theme.disk)
             Circle().strokeBorder(theme.stroke, lineWidth: 1)
         }
         .frame(width: d, height: d)
-        .shadow(color: theme.shadow, radius: 30, y: 12)
+        .shadow(color: theme.shadow, radius: 36, y: 24)
     }
 
-    // MARK: Slices
-
-    @ViewBuilder
-    private func slice(_ i: Int, _ item: WheelItem) -> some View {
-        let center = geometry.sliceCenter(i)
-        let span = geometry.sliceSpan
-        let selected = hit == .item(i)
-        let parentOfSelected = { if case .child(i, _) = hit { return true } else { return false } }()
-        let active = selected || parentOfSelected
-        let dimmed = hit.itemIndex != nil && !active
-        let midRadius = (metrics.ringInner + metrics.ringOuter) / 2
-        let iconSize: CGFloat = items.count > 6 ? 40 : 46
-
+    private var wedges: some View {
         ZStack {
-            AnnularSector(center: center, span: items.count == 1 ? 2 * .pi : span,
-                          inner: metrics.ringInner,
-                          outer: selected ? metrics.ringOuter + 6 : metrics.ringOuter - 6)
-                .fill(active ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover,
-                                                            startPoint: .topLeading, endPoint: .bottomTrailing))
-                             : AnyShapeStyle(theme.slice))
-                .opacity(parentOfSelected ? 0.55 : 1)
-                .shadow(color: selected ? theme.glow.opacity(0.65) : .clear, radius: 16)
+            ForEach(items.indices, id: \.self) { i in
+                AnnularSector(center: geometry.sliceCenter(i), span: items.count == 1 ? 2 * .pi : geometry.sliceSpan,
+                              inner: metrics.ringInner, outer: metrics.ringOuter)
+                    .fill(focus == i ? theme.sliceHover : theme.slice)
+            }
+        }
+        .frame(width: size, height: size)
+        .animation(.easeOut(duration: 0.14), value: focus)
+    }
 
-            IconView(icon: IconCache.shared.icon(for: item), size: iconSize, tint: theme.symbol)
-                .shadow(color: .black.opacity(theme.isDark ? 0.35 : 0.12), radius: 4, y: 2)
-                .scaleEffect(selected ? 1.16 : 1)
-                .opacity(dimmed ? 0.55 : 1)
-                .position(Self.point(center, midRadius + (selected ? 4 : 0), size))
+    /// A slice's icon. Pops in with a short stagger when the wheel opens; grows a little when hovered
+    /// while the others dim.
+    private func tile(_ i: Int, _ item: WheelItem) -> some View {
+        let selected = focus == i
+        let pop: Animation? = visible && !reduceMotion
+            ? .spring(response: 0.34, dampingFraction: 0.62).delay(0.04 + Double(i) * 0.022) : nil
+        return IconView(icon: IconCache.shared.icon(for: item), size: 36, tint: theme.symbol)
+            .shadow(color: .black.opacity(theme.isDark ? 0.35 : 0.12), radius: 3, y: 1.5)
+            .scaleEffect(selected ? 1.12 : 1)
+            .opacity(focus != nil && !selected ? 0.55 : 1)
+            .animation(reduceMotion ? fade : .spring(response: 0.3, dampingFraction: 0.6), value: selected)
+            .animation(fade, value: focus != nil)
+            .scaleEffect(visible || reduceMotion ? 1 : 0.6)
+            .opacity(visible ? 1 : 0)
+            .animation(pop, value: visible)
+            .position(Self.point(geometry.sliceCenter(i), tileRadius, size))
+    }
 
-            if ring(i).count > 0 {
-                // Small dot on the rim hinting there are sub-actions or windows.
-                Circle()
-                    .fill(active ? theme.onHover : theme.subtext)
-                    .frame(width: 4, height: 4)
-                    .position(Self.point(center, metrics.ringOuter - 12, size))
-                    .opacity(selected ? 0 : 1)
+    // MARK: Sub-actions
+
+    private struct SubEntry: Identifiable {
+        let parent: Int
+        let index: Int
+        let entry: Ring.Entry
+        let angle: Double
+        /// Changes with the parent, so a new set unfolds instead of morphing the old one.
+        var id: String { "\(parent)-\(entry.id)" }
+    }
+
+    private var subEntries: [SubEntry] {
+        guard let p = openParent, p < items.count else { return [] }
+        let angles = geometry.childAngles(parent: p)
+        return ring(p).entries.enumerated().map { SubEntry(parent: p, index: $0.offset, entry: $0.element, angle: angles[$0.offset]) }
+    }
+
+    private var subActions: some View {
+        ZStack {
+            ForEach(subEntries) { sub in
+                subWedge(sub)
+                    .transition(.asymmetric(
+                        insertion: reduceMotion
+                            ? .opacity.animation(fade)
+                            : .scale(scale: 0.82).combined(with: .opacity)
+                                .animation(.spring(response: 0.36, dampingFraction: 0.7).delay(Double(sub.index) * 0.045)),
+                        removal: .opacity.animation(.easeOut(duration: 0.1))))
             }
         }
         .frame(width: size, height: size)
     }
 
-    // MARK: Sub-actions
-
-    @ViewBuilder
-    private var subRing: some View {
-        if let p = openParent, p < items.count, ring(p).count > 0 {
-            let entries = ring(p).entries
-            let angles = geometry.childAngles(parent: p)
-            let mid = (metrics.subInner + metrics.subOuter) / 2
-            ZStack {
-                ForEach(Array(entries.enumerated()), id: \.element.id) { j, entry in
-                    let selected = hit == .child(p, j)
-                    let outer = selected ? metrics.subOuter + 6 : metrics.subOuter
-                    ZStack {
-                        if glassSubActions {
-                            GlassPane(shape: AnnularSector(center: angles[j], span: metrics.childSpan,
-                                                           inner: metrics.subInner, outer: outer),
-                                      dark: theme.isDark)
-                        }
-                        AnnularSector(center: angles[j], span: metrics.childSpan, inner: metrics.subInner,
-                                      outer: selected ? metrics.subOuter + 6 : metrics.subOuter)
-                            .fill(selected ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover,
-                                                                          startPoint: .topLeading, endPoint: .bottomTrailing))
-                                           : AnyShapeStyle(theme.sub))
-                            .overlay(
-                                AnnularSector(center: angles[j], span: metrics.childSpan, inner: metrics.subInner,
-                                              outer: selected ? metrics.subOuter + 6 : metrics.subOuter)
-                                    .stroke(theme.stroke, lineWidth: 1)
-                            )
-                            .shadow(color: selected ? theme.glow.opacity(0.6) : theme.shadow.opacity(0.5),
-                                    radius: selected ? 14 : 8)
-                        ringEntryLabel(entry, selected: selected)
-                        .scaleEffect(selected ? 1.08 : 1)
-                        .position(Self.point(angles[j], mid + (selected ? 3 : 0), size))
-                    }
-                }
+    private func subWedge(_ sub: SubEntry) -> some View {
+        let selected = hit == .child(sub.parent, sub.index)
+        let shape = AnnularSector(center: sub.angle, span: metrics.childSpan,
+                                  inner: metrics.subInner, outer: metrics.subOuter, gap: 5)
+        return ZStack {
+            if glassSubActions {
+                GlassPane(shape: shape, dark: theme.isDark)
             }
-            .frame(width: size, height: size)
-            .transition(.scale(scale: 0.86).combined(with: .opacity))
-            .id(p)
+            shape.fill(theme.sub)
+                .shadow(color: theme.shadow.opacity(glassSubActions ? 0 : 0.5), radius: 8)
+            shape.fill(LinearGradient(colors: theme.subHover, startPoint: .topLeading, endPoint: .bottomTrailing))
+                .opacity(selected ? 1 : 0)
+            ringEntryLabel(sub.entry, selected: selected)
+                .position(Self.point(sub.angle, (metrics.subInner + metrics.subOuter) / 2, size))
         }
+        .frame(width: size, height: size)
+        .animation(.easeOut(duration: 0.13), value: selected)
     }
 
     // MARK: Hub
@@ -210,15 +314,15 @@ struct WheelCanvas: View {
         // Letting go in the center closes the wheel, unless it has been open long enough to arm Settings.
         let onSettings = settingsArmed && hit == .center
         return ZStack {
-            Circle()
-                .fill(onSettings ? theme.hubHover : theme.hub)
-                .overlay(Circle().strokeBorder(onSettings ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover, startPoint: .top, endPoint: .bottom))
-                                                          : AnyShapeStyle(theme.stroke), lineWidth: onSettings ? 1.5 : 1))
+            Circle().fill(onSettings ? theme.hubHover : theme.hub)
+            Circle().strokeBorder(theme.stroke, lineWidth: 1)
             hubContent
-                .padding(8)
+                .padding(12)
                 .frame(width: d, height: d)
         }
         .frame(width: d, height: d)
+        .animation(.easeOut(duration: 0.18), value: onSettings)
+        .animation(.easeOut(duration: 0.12), value: hit)
     }
 
     @ViewBuilder
@@ -226,12 +330,12 @@ struct WheelCanvas: View {
         switch hit {
         case .center:
             if settingsArmed {
-                VStack(spacing: 2) {
-                    Image(systemName: "gearshape.fill").font(.system(size: 15, weight: .semibold))
-                    Text("Settings").font(.system(size: 9, weight: .semibold, design: .rounded))
+                VStack(spacing: 4) {
+                    Image(systemName: "gearshape").font(.system(size: 17, weight: .medium))
+                    Text("Settings").font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(theme.text)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                .transition(.opacity)
             }
         case .item(let i) where i < items.count:
             hubLabel(items[i].label, caption: nil)
@@ -241,11 +345,9 @@ struct WheelCanvas: View {
             case .action(let a): hubLabel(a.label, caption: items[p].label)
             }
         case .cancel:
-            VStack(spacing: 2) {
-                Image(systemName: "xmark").font(.system(size: 14, weight: .bold))
-                Text("Cancel").font(.system(size: 9, weight: .semibold, design: .rounded))
-            }
-            .foregroundStyle(theme.subtext)
+            Text("Cancel")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(theme.subtext)
         default:
             EmptyView()
         }
@@ -258,32 +360,32 @@ struct WheelCanvas: View {
         VStack(spacing: 4) {
             switch entry {
             case .action(let child):
-                IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 22,
+                IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 20,
                          tint: selected ? theme.onHover : theme.symbol)
             case .window(let w):
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: w.isMinimized ? "minus.rectangle" : w.isFullScreen ? "arrow.up.left.and.arrow.down.right.square" : "macwindow")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(selected ? theme.onHover : theme.symbol)
-                        .frame(width: 26, height: 22)
+                        .frame(width: 26, height: 20)
                     if displayCount > 1, let d = w.displayIndex {
                         let here = d == hereDisplay
                         Text("\(d + 1)")
                             .font(.system(size: 8, weight: .heavy, design: .rounded))
                             .foregroundStyle(here ? theme.onHover : theme.text)
                             .frame(width: 12, height: 12)
-                            .background(Circle().fill(here ? AnyShapeStyle(LinearGradient(colors: theme.sliceHover, startPoint: .top, endPoint: .bottom))
+                            .background(Circle().fill(here ? AnyShapeStyle(LinearGradient(colors: theme.subHover, startPoint: .top, endPoint: .bottom))
                                                            : AnyShapeStyle(theme.stroke.opacity(2))))
                             .offset(x: 6, y: -5)
                     }
                 }
             }
             Text(entry.label)
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(selected ? theme.onHover : theme.subtext)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(selected ? theme.onHover : theme.symbol)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: 92)
+                .frame(maxWidth: 96)
                 .opacity(entry.isDimmed && !selected ? 0.6 : 1)
         }
     }
@@ -294,15 +396,16 @@ struct WheelCanvas: View {
     }
 
     private func hubLabel(_ title: String, caption: String?) -> some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 2) {
             if let caption {
                 Text(caption)
-                    .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(theme.subtext)
                     .lineLimit(1)
             }
             Text(title)
-                .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .medium))
+                .tracking(-0.15)
                 .foregroundStyle(theme.text)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -315,6 +418,14 @@ struct WheelCanvas: View {
     /// Position for angle θ (0 = up, clockwise) at radius r, in a square canvas of side `size`.
     static func point(_ angle: Double, _ r: Double, _ size: CGFloat) -> CGPoint {
         CGPoint(x: size / 2 + r * sin(angle), y: size / 2 - r * cos(angle))
+    }
+
+    /// `angle` shifted by whole turns to within half a turn of `previous`.
+    static func unwrap(_ angle: Double, near previous: Double) -> Double {
+        var a = angle
+        while a - previous > .pi { a -= 2 * .pi }
+        while a - previous < -.pi { a += 2 * .pi }
+        return a
     }
 }
 
@@ -382,6 +493,26 @@ struct AnnularSector: Shape {
         p.addArc(center: c, radius: outer, startAngle: toSwiftUI(a0 + gOuter), endAngle: toSwiftUI(a1 - gOuter), clockwise: false)
         p.addArc(center: c, radius: inner, startAngle: toSwiftUI(a1 - gInner), endAngle: toSwiftUI(a0 + gInner), clockwise: true)
         p.closeSubpath()
+        return p
+    }
+}
+
+/// An arc of a circle centered on the canvas, centered on straight up; rotate it into place.
+/// `span` animates, so a rail can grow or shrink smoothly.
+struct RailArc: Shape {
+    var radius: Double
+    var span: Double
+
+    var animatableData: Double {
+        get { span }
+        set { span = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        var p = Path()
+        p.addArc(center: c, radius: radius, startAngle: .radians(-span / 2 - .pi / 2),
+                 endAngle: .radians(span / 2 - .pi / 2), clockwise: false)
         return p
     }
 }

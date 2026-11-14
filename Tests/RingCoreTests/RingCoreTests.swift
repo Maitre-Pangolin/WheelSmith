@@ -18,6 +18,8 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
     @Test func centerIsHub() {
         #expect(geo.hit(dx: 0, dy: 0, openParent: nil) == .center)
         #expect(geo.hit(dx: 10, dy: -20, openParent: nil) == .center)
+        #expect(geo.hit(dx: 0, dy: m.hubRadius - 1, openParent: nil) == .center)
+        #expect(geo.hit(dx: 0, dy: m.hubRadius + 1, openParent: nil) == .item(0))
     }
 
     @Test func eightSlicesClockwiseFromTop() {
@@ -61,7 +63,7 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
     }
 
     @Test func childrenOnlyWhenParentOpen() {
-        let (dx, dy) = point(angleDegrees: 90 + 34, radius: 200)
+        let (dx, dy) = point(angleDegrees: 90 + m.childSpan * 180 / .pi, radius: 250)
         #expect(geo.hit(dx: dx, dy: dy, openParent: 2) == .child(2, 2))
         #expect(geo.hit(dx: dx, dy: dy, openParent: nil) == .cancel)
     }
@@ -73,10 +75,10 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         var (dx, dy) = point(angleDegrees: 90, radius: 100)
         #expect(t.update(dx: dx, dy: dy) == .item(2))
         #expect(t.openParent == 2)
-        (dx, dy) = point(angleDegrees: 90, radius: 200)
+        (dx, dy) = point(angleDegrees: 90, radius: 250)
         #expect(t.update(dx: dx, dy: dy) == .child(2, 1))
         // ...then slide sideways along the sub ring, past where slice 3 begins (112.5°).
-        (dx, dy) = point(angleDegrees: 122, radius: 200)
+        (dx, dy) = point(angleDegrees: 122, radius: 250)
         #expect(t.update(dx: dx, dy: dy) == .child(2, 2))
         #expect(t.openParent == 2)
         // Back to the center closes it.
@@ -237,7 +239,7 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(angles.count == 8)
         // Every entry is still selectable by angle.
         for (j, a) in angles.enumerated() {
-            let dx = 200 * sin(a), dy = 200 * cos(a)
+            let dx = 250 * sin(a), dy = 250 * cos(a)
             #expect(geo.hit(dx: dx, dy: dy, openParent: 0) == .child(0, j))
         }
     }

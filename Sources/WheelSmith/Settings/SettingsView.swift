@@ -105,7 +105,7 @@ struct WheelPreviewPane: View {
     @Binding var selection: Selection?
     @Binding var tab: SettingsView.Tab
     private let metrics = WheelMetrics.standard
-    private let scale: CGFloat = 0.66
+    private let scale: CGFloat = 0.55
 
     var body: some View {
         let theme = Theme.named(store.config.theme)

@@ -29,8 +29,9 @@ enum Snapshot {
                                ? [Color(red: 0.13, green: 0.09, blue: 0.27), Color(red: 0.02, green: 0.04, blue: 0.11)]
                                : [Color(red: 0.95, green: 0.91, blue: 0.99), Color(red: 0.84, green: 0.91, blue: 0.99)],
                                startPoint: .top, endPoint: .bottom)
+                // Unarmed: the ring partway through its first second.
                 WheelCanvas(items: config.items, theme: theme, hit: hit, openParent: parent, opaqueBackdrop: true,
-                            settingsArmed: armed)
+                            settingsArmed: armed, armProgress: armed ? 1 : 0.4)
             }
             let size = WheelMetrics.standard.canvasSize
             render(view, size: CGSize(width: size, height: size), to: dir.appendingPathComponent(name + ".png"))

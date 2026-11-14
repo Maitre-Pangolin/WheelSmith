@@ -16,18 +16,23 @@ struct Theme: Identifiable {
     /// Tint laid over the backdrop.
     let disk: Color
     let stroke: Color
+    /// A slice wedge at rest.
     let slice: Color
-    let sliceHover: [Color]
-    let glow: Color
+    /// The hovered slice's wedge (a quiet fill: the rails carry the selection).
+    let sliceHover: Color
+    /// Selection rails and the Settings arm ring.
+    let rail: Color
     let hub: Color
     /// Hub fill while letting go there would open Settings.
     let hubHover: Color
     let text: Color
     let subtext: Color
-    /// Fill of the sub-action ring.
+    /// A sub-action wedge at rest.
     let sub: Color
+    /// The hovered sub-action: a 2-stop gradient (top-leading → bottom-trailing).
+    let subHover: [Color]
     let symbol: Color
-    /// Labels and symbols drawn on top of `sliceHover`.
+    /// Labels and symbols drawn on top of `subHover`.
     let onHover: Color
     let shadow: Color
 
@@ -42,14 +47,15 @@ struct Theme: Identifiable {
         backdrop: .blur(.hudWindow, dark: true),
         disk: Color(red: 0.04, green: 0.04, blue: 0.08).opacity(0.62),
         stroke: .white.opacity(0.10),
-        slice: .white.opacity(0.045),
-        sliceHover: [Color(red: 0.49, green: 0.36, blue: 1.0), Color(red: 0.18, green: 0.62, blue: 1.0)],
-        glow: Color(red: 0.36, green: 0.48, blue: 1.0),
+        slice: .white.opacity(0.03),
+        sliceHover: Color(red: 0.42, green: 0.48, blue: 1.0).opacity(0.18),
+        rail: Color(red: 0.55, green: 0.62, blue: 1.0),
         hub: Color(red: 0.09, green: 0.09, blue: 0.13).opacity(0.92),
         hubHover: Color(red: 0.16, green: 0.15, blue: 0.24),
         text: .white,
         subtext: .white.opacity(0.55),
-        sub: Color(red: 0.07, green: 0.07, blue: 0.11).opacity(0.94),
+        sub: Color(red: 0.07, green: 0.07, blue: 0.11).opacity(0.9),
+        subHover: [Color(red: 0.49, green: 0.36, blue: 1.0), Color(red: 0.18, green: 0.62, blue: 1.0)],
         symbol: .white.opacity(0.92),
         onHover: .white,
         shadow: .black.opacity(0.45)
@@ -60,14 +66,15 @@ struct Theme: Identifiable {
         backdrop: .blur(.popover, dark: false),
         disk: .white.opacity(0.55),
         stroke: .black.opacity(0.08),
-        slice: .black.opacity(0.035),
-        sliceHover: [Color(red: 1.0, green: 0.52, blue: 0.30), Color(red: 1.0, green: 0.30, blue: 0.45)],
-        glow: Color(red: 1.0, green: 0.42, blue: 0.38),
+        slice: .black.opacity(0.025),
+        sliceHover: Color(red: 1.0, green: 0.42, blue: 0.38).opacity(0.14),
+        rail: Color(red: 1.0, green: 0.38, blue: 0.36),
         hub: .white.opacity(0.92),
         hubHover: Color(red: 1.0, green: 0.95, blue: 0.93),
         text: Color(white: 0.1),
         subtext: Color(white: 0.1).opacity(0.5),
         sub: .white.opacity(0.94),
+        subHover: [Color(red: 1.0, green: 0.52, blue: 0.30), Color(red: 1.0, green: 0.30, blue: 0.45)],
         symbol: Color(white: 0.15),
         onHover: .white,
         shadow: .black.opacity(0.22)
@@ -78,15 +85,16 @@ struct Theme: Identifiable {
         backdrop: .glass(dark: true),
         disk: .black.opacity(0.18),
         stroke: .white.opacity(0.18),
-        slice: .white.opacity(0.06),
-        // Near-opaque white with dark labels: a faint white tint vanished over light desktops.
-        sliceHover: [Color.white.opacity(0.92), Color.white.opacity(0.78)],
-        glow: .white.opacity(0.7),
+        slice: .white.opacity(0.04),
+        sliceHover: .white.opacity(0.16),
+        rail: .white,
         hub: .black.opacity(0.28),
         hubHover: .white.opacity(0.22),
         text: .white,
         subtext: .white.opacity(0.65),
         sub: .black.opacity(0.42),
+        // Near-opaque white with dark labels: a faint white tint vanished over light desktops.
+        subHover: [Color.white.opacity(0.92), Color.white.opacity(0.78)],
         symbol: .white,
         onHover: Color(white: 0.08),
         shadow: .black.opacity(0.3)

@@ -332,7 +332,7 @@ struct ThemeCard: View {
                                              startPoint: .top, endPoint: .bottom))
                     WheelCanvas(items: items, theme: theme, hit: .item(0), openParent: nil,
                                 opaqueBackdrop: true)
-                        .scaleEffect(scale * 1.6)
+                        .scaleEffect(scale * 1.3)
                         .frame(width: 130, height: 110)
                         .allowsHitTesting(false)
                 }

@@ -94,7 +94,7 @@ final class WheelController {
         center = mouse
         if let frame = screen?.visibleFrame {
             // Keep the whole slice ring on screen; if we had to shift, move the pointer to the center.
-            let margin = metrics.ringOuter + 16
+            let margin = metrics.diskRadius + 16
             center.x = min(max(mouse.x, frame.minX + margin), frame.maxX - margin)
             center.y = min(max(mouse.y, frame.minY + margin), frame.maxY - margin)
             if center != mouse { warpPointer(to: center) }

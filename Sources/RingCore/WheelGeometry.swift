@@ -3,24 +3,32 @@ import Foundation
 /// Radii (points) of the wheel's rings, from the center outwards.
 public struct WheelMetrics: Equatable, Sendable {
     /// Center hub: releasing here closes the wheel, or opens Settings once it has been open a second.
-    public var hubRadius: Double = 44
-    /// Slice band.
-    public var ringInner: Double = 52
-    public var ringOuter: Double = 148
-    /// Sub-action band, shown around the hovered slice when it has children.
-    public var subInner: Double = 156
-    public var subOuter: Double = 236
+    public var hubRadius: Double = 64
+    /// Inner rail under the hovered slice; also where the Settings arm ring fills around the hub.
+    public var innerRail: Double = 76
+    /// Slice wedges.
+    public var ringInner: Double = 84
+    public var ringOuter: Double = 194
+    /// Edge of the disk drawn behind the wedges.
+    public var diskRadius: Double = 200
+    /// Outer rail: just outside the hovered slice, or inside the hovered sub-action.
+    public var outerRail: Double = 208
+    /// Sub-action wedges, shown around the hovered slice when it has children.
+    public var subInner: Double = 216
+    public var subOuter: Double = 282
+    /// Rail just outside the hovered sub-action.
+    public var subRail: Double = 290
     /// Forgiveness band beyond the outer edge before a release counts as "cancel".
-    public var cancelSlack: Double = 26
-    /// Angular width of one sub-action (radians).
-    public var childSpan: Double = 34 * .pi / 180
+    public var cancelSlack: Double = 18
+    /// Angular width of one sub-action (radians, about 29°).
+    public var childSpan: Double = 0.5
 
     public static let standard = WheelMetrics()
 
     public init() {}
 
     /// Side of the square canvas the wheel is drawn in.
-    public var canvasSize: Double { 2 * (subOuter + 28) }
+    public var canvasSize: Double { 2 * (subRail + 28) }
 }
 
 /// What the pointer is over.
