@@ -63,6 +63,19 @@ cursor. Point at a slice and let go to jump to that app or run its action.
 - To build from source: Swift 5.10 or later. The Xcode Command Line Tools are enough
   (`xcode-select --install`).
 
+## Install with Homebrew
+
+```bash
+brew tap maitre-pangolin/tap
+brew trust --cask maitre-pangolin/tap/wheelsmith
+brew install --cask maitre-pangolin/tap/wheelsmith
+```
+
+Homebrew only loads casks from other people's taps once you trust them, hence `brew trust`. The app
+still isn't notarized, so the first launch needs **Open Anyway** once, as in the next section.
+Update with `brew upgrade --cask wheelsmith` and open WheelSmith again; remove it, with its login
+item and config, with `brew uninstall --zap --cask wheelsmith`.
+
 ## Download
 
 1. Get `WheelSmith-<version>.zip` from the
