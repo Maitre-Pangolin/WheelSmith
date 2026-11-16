@@ -12,8 +12,11 @@ final class LaunchAtLogin: ObservableObject {
         }
     }
 
-    /// Only meaningful when running from an installed .app bundle (not `swift run`).
+    /// Only meaningful when running from an installed .app bundle (not `swift run`), and not from the
+    /// random read-only copy macOS runs a freshly downloaded app from (App Translocation): a
+    /// LaunchAgent pointing there would break as soon as that copy disappears.
     let isAvailable: Bool
+    let isTranslocated: Bool
 
     private var plistURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -21,17 +24,29 @@ final class LaunchAtLogin: ObservableObject {
     }
 
     init() {
-        isAvailable = Bundle.main.bundleURL.pathExtension == "app"
+        isTranslocated = Bundle.main.bundlePath.contains("/AppTranslocation/")
+        isAvailable = Bundle.main.bundleURL.pathExtension == "app" && !isTranslocated
         isEnabled = FileManager.default.fileExists(atPath: FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/\(Self.label).plist").path)
     }
 
-    /// Turn it on automatically the first time the installed app runs.
+    /// Turn it on automatically the first time the installed app runs, and keep the LaunchAgent
+    /// pointing at this copy if the app was moved since it was written.
     func enableOnFirstRun() {
+        guard isAvailable else { return }
         let key = "didOfferLaunchAtLogin"
-        guard isAvailable, !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        if !isEnabled { isEnabled = true }
+        if !UserDefaults.standard.bool(forKey: key) {
+            UserDefaults.standard.set(true, forKey: key)
+            if !isEnabled { isEnabled = true; return }
+        }
+        if isEnabled, registeredExecutable != Bundle.main.executablePath { install() }
+    }
+
+    private var registeredExecutable: String? {
+        guard let data = try? Data(contentsOf: plistURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let args = plist["ProgramArguments"] as? [String] else { return nil }
+        return args.first
     }
 
     private func install() {

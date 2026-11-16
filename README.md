@@ -58,10 +58,33 @@ cursor. Point at a slice and let go to jump to that app or run its action.
 
 ## Requirements
 
-- macOS 14 or later (built and tested on macOS 26, Apple Silicon)
-- Swift 5.10 or later. The Xcode Command Line Tools are enough (`xcode-select --install`).
+- macOS 14 or later (built and tested on macOS 26, Apple Silicon). Release builds are universal
+  (Apple Silicon and Intel).
+- To build from source: Swift 5.10 or later. The Xcode Command Line Tools are enough
+  (`xcode-select --install`).
 
-## Install (runs at login)
+## Download
+
+1. Get `WheelSmith-<version>.zip` from the
+   [latest release](https://github.com/Maitre-Pangolin/WheelSmith/releases/latest) and unzip it.
+2. Drag **WheelSmith.app** into your **Applications** folder, then open it.
+3. WheelSmith isn't notarized by Apple, so macOS says it can't verify the app. Click **Done**, open
+   **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to WheelSmith.
+   You only do this once. Or, in Terminal:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/WheelSmith.app
+   ```
+
+On first launch WheelSmith turns on launch at login (a LaunchAgent, see
+[Install from source](#install-from-source)). To update, quit it from the menu bar, replace the app
+in Applications, and open it again; the Accessibility permission carries over, because every
+release is signed with the same certificate.
+
+To remove it: quit WheelSmith, delete the app, and delete
+`~/Library/LaunchAgents/dev.wheelsmith.app.plist`. Your config stays in `~/.config/wheelsmith`.
+
+## Install from source
 
 First, once per Mac, create a local signing certificate. This keeps the Accessibility permission
 across reinstalls (see [Code signing](#code-signing)):
@@ -157,6 +180,31 @@ The first build may ask whether `codesign` can use the key: click **Always Allow
 
 To remove the certificate: Keychain Access → login → My Certificates → delete "WheelSmith Local
 Signing".
+
+### Publishing a release
+
+Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml))
+when you push a version tag:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The workflow runs the tests, builds a universal app with `./scripts/package.sh` (version taken from
+the tag), and publishes `WheelSmith-<version>.zip` and its `.sha256` as a release with install notes.
+To try the packaging locally: `VERSION=0.2.0 ./scripts/package.sh`, which writes to `dist/`.
+
+Release builds are signed with a self-signed certificate, **WheelSmith Release Signing**, stored as
+the repo secrets `SIGNING_P12_BASE64` and `SIGNING_P12_PASSWORD`. That's what keeps users'
+Accessibility permission across updates. Create it once with:
+
+```bash
+./scripts/setup-release-signing.sh
+```
+
+It also saves a backup to `~/Documents/WheelSmith Release Signing`. Keep it: a new certificate means
+every user re-grants Accessibility once. Without the secrets, the workflow still publishes, signed
+ad-hoc, with a warning.
 
 ## Configuration
 

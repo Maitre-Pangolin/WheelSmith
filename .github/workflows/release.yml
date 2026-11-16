@@ -1,0 +1,58 @@
+# Push a tag like v0.2.0 to build a universal WheelSmith.app and publish it as a GitHub release.
+#   git tag v0.2.0 && git push origin v0.2.0
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # build.sh uses the commit count as CFBundleVersion
+
+      - name: Version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: swift test
+
+      - name: Import signing certificate
+        env:
+          SIGNING_P12_BASE64: ${{ secrets.SIGNING_P12_BASE64 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: ./scripts/ci-import-signing.sh
+
+      - name: Build and package
+        run: ./scripts/package.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<'EOF'
+          ## Install
+
+          1. Download **WheelSmith-${{ env.VERSION }}.zip** below and unzip it.
+          2. Drag **WheelSmith.app** into your **Applications** folder, then open it.
+          3. macOS says it can't verify the app, because WheelSmith isn't notarized by Apple. Click **Done**,
+             open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to
+             WheelSmith. You only do this once.
+
+             Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/WheelSmith.app`
+
+          WheelSmith then starts at every login. Hold **⌥ Space** anywhere. Universal build (Apple Silicon and Intel), macOS 14 or later.
+
+          **Updating:** quit WheelSmith from its menu, replace the app in Applications, and open it again.
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/WheelSmith-*.zip dist/WheelSmith-*.zip.sha256 \
+            --title "WheelSmith $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            --verify-tag

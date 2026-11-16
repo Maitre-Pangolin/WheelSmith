@@ -1,19 +1,40 @@
 #!/usr/bin/env bash
 # Builds build/WheelSmith.app (release). Signs with a stable identity when one is available.
+#
+#   UNIVERSAL=1   build for Apple Silicon and Intel, merged with lipo (default: this Mac's arch only)
+#   VERSION=1.2.3 stamp CFBundleShortVersionString (default: the one in Support/Info.plist)
+#   BUILD_NUMBER  stamp CFBundleVersion (default: the number of commits, when VERSION is set)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIGURATION="${CONFIGURATION:-release}"
 APP="build/WheelSmith.app"
-
-echo "→ swift build ($CONFIGURATION)"
-swift build -c "$CONFIGURATION"
-BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
+MIN_MACOS="14.0"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/WheelSmith" "$APP/Contents/MacOS/WheelSmith"
+
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then
+    SLICES=()
+    for ARCH in arm64 x86_64; do
+        TRIPLE="$ARCH-apple-macosx$MIN_MACOS"
+        echo "→ swift build ($CONFIGURATION, $ARCH)"
+        swift build -c "$CONFIGURATION" --triple "$TRIPLE"
+        SLICES+=("$(swift build -c "$CONFIGURATION" --triple "$TRIPLE" --show-bin-path)/WheelSmith")
+    done
+    lipo -create "${SLICES[@]}" -output "$APP/Contents/MacOS/WheelSmith"
+else
+    echo "→ swift build ($CONFIGURATION)"
+    swift build -c "$CONFIGURATION"
+    cp "$(swift build -c "$CONFIGURATION" --show-bin-path)/WheelSmith" "$APP/Contents/MacOS/WheelSmith"
+fi
+
 cp Support/Info.plist "$APP/Contents/Info.plist"
+if [[ -n "${VERSION:-}" ]]; then
+    BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
+        -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
+fi
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Theme fonts (OFL), registered by the app for itself at launch.
 mkdir -p "$APP/Contents/Resources/Fonts"
@@ -46,4 +67,4 @@ if [[ -z "${SIGN_IDENTITY:-}" ]]; then
 fi
 
 codesign --force --sign "$SIGN_IDENTITY" ${KEYCHAIN_ARGS[@]+"${KEYCHAIN_ARGS[@]}"} "$APP" >/dev/null
-echo "✓ Built $APP (signed: $([[ "$SIGN_IDENTITY" == "-" ]] && echo ad-hoc || echo "${SIGN_LABEL:-$SIGN_IDENTITY}"))"
+echo "✓ Built $APP $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist") [$(lipo -archs "$APP/Contents/MacOS/WheelSmith")] (signed: $([[ "$SIGN_IDENTITY" == "-" ]] && echo ad-hoc || echo "${SIGN_LABEL:-$SIGN_IDENTITY}"))"

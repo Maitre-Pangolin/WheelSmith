@@ -267,7 +267,10 @@ struct GeneralPane: View {
                 Toggle("Launch at login, and restart if it ever crashes", isOn: $launchAtLogin.isEnabled)
                     .disabled(!launchAtLogin.isAvailable)
                 if !launchAtLogin.isAvailable {
-                    Text("Available when running the installed WheelSmith.app.").font(.caption).foregroundStyle(.secondary)
+                    Text(launchAtLogin.isTranslocated
+                         ? "Move WheelSmith.app to your Applications folder and open it from there to turn this on."
+                         : "Available when running the installed WheelSmith.app.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 LabeledContent("Accessibility") {
                     HStack {
