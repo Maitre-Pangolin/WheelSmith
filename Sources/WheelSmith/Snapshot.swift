@@ -19,8 +19,8 @@ enum Snapshot {
             ("wheel-midnight-slice", "midnight", .item(7), 7, false),
             ("wheel-midnight-sub", "midnight", .child(3, 2), 3, false),
             ("wheel-daylight-sub", "daylight", .child(5, 0), 5, false),
-            ("wheel-glass-slice", "glass", .item(4), 4, false),
-            ("wheel-glass-sub", "glass", .child(3, 1), 3, false),
+            ("wheel-graphite-slice", "graphite", .item(4), 4, false),
+            ("wheel-astrolabe-sub", "astrolabe", .child(3, 1), 3, false),
         ]
         for (name, themeId, hit, parent, armed) in states {
             let theme = Theme.named(themeId)
@@ -104,13 +104,21 @@ enum Snapshot {
             }
             render(view, size: Stage.size(), to: dir.appendingPathComponent(name + ".png"))
         }
+        // Right after pressing → to switch themes.
+        let aurora = Theme.named("aurora")
+        render(ZStack {
+            DesignBackground(kind: "dusk")
+            WheelCanvas(items: config.items, theme: aurora, hit: .center, openParent: nil, opaqueBackdrop: true,
+                        armProgress: 0.4, themeToast: ThemeToast(name: aurora.name, detail: "Dark · 2 of 18"))
+        }, size: CGSize(width: side, height: side), to: dir.appendingPathComponent("wheel-theme-switch.png"))
+
         // Every theme over the background it was designed on, with a sub-action hovered.
         let themeDir = dir.appendingPathComponent("themes")
         try? FileManager.default.createDirectory(at: themeDir, withIntermediateDirectories: true)
         let outlook = config.items.firstIndex { $0.label == "Outlook" } ?? 3
         for theme in Theme.catalog {
             render(themeCard(theme, items: config.items, hit: .child(outlook, 1), parent: outlook),
-                   size: CGSize(width: 636, height: 636), to: themeDir.appendingPathComponent(theme.id + ".png"))
+                   size: CGSize(width: side, height: side), to: themeDir.appendingPathComponent(theme.id + ".png"))
         }
         let columns = 8, cell: CGFloat = 300
         let sheet = VStack(alignment: .leading, spacing: 0) {
@@ -119,8 +127,8 @@ enum Snapshot {
                     ForEach(Theme.catalog[start..<min(start + columns, Theme.catalog.count)], id: \.id) { theme in
                         ZStack(alignment: .bottomLeading) {
                             themeCard(theme, items: config.items, hit: .child(outlook, 1), parent: outlook)
-                                .frame(width: 636, height: 636)
-                                .scaleEffect(cell / 636)
+                                .frame(width: side, height: side)
+                                .scaleEffect(cell / side)
                                 .frame(width: cell, height: cell)
                                 .clipped()
                             Text(theme.name)
@@ -137,6 +145,9 @@ enum Snapshot {
         let rows = (Theme.catalog.count + columns - 1) / columns
         render(sheet, size: CGSize(width: cell * CGFloat(columns), height: cell * CGFloat(rows)),
                to: dir.appendingPathComponent("themes.png"))
+        let families = Set(Theme.catalog.flatMap { [$0.spec.hubFont?.family, $0.spec.labelFont?.family] }.compactMap { $0 })
+        let missing = families.subtracting(ThemeFont.installed).sorted()
+        print(missing.isEmpty ? "Theme fonts: all \(families.count) available" : "Theme fonts missing (substituted): \(missing.joined(separator: ", "))")
         print("Snapshots written to \(dir.path)")
     }
 

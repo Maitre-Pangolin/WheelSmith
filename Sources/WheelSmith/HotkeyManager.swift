@@ -11,6 +11,21 @@ final class HotkeyManager {
     var onPress: (() -> Void)?
     var onRelease: (() -> Void)?
     var onEscape: (() -> Void)?
+    /// An arrow key pressed while the wheel is open.
+    var onArrow: ((Arrow) -> Void)?
+
+    enum Arrow: UInt32, CaseIterable {
+        case left, right, up, down
+
+        var keyCode: Int {
+            switch self {
+            case .left: kVK_LeftArrow
+            case .right: kVK_RightArrow
+            case .up: kVK_UpArrow
+            case .down: kVK_DownArrow
+            }
+        }
+    }
 
     /// Non-nil when the last registration failed (e.g. another app owns the combo).
     private(set) var registrationError: String?
@@ -18,10 +33,13 @@ final class HotkeyManager {
     private(set) var combo: KeyCombo?
     private var mainRef: EventHotKeyRef?
     private var escapeRefs: [EventHotKeyRef] = []
+    private var arrowRefs: [EventHotKeyRef] = []
     private var suspended = false
     private let signature: OSType = 0x52_49_4E_47 // 'RING'
 
     private enum ID: UInt32 { case main = 1, escape = 2, escapeWithModifiers = 3 }
+    /// Arrow hotkeys use ids from here up: base + arrow (bare) and base + 4 + arrow (with modifiers).
+    private let arrowBase: UInt32 = 10
 
     private init() {
         var specs = [
@@ -74,6 +92,24 @@ final class HotkeyManager {
         }
     }
 
+    /// Arrows switch themes while the wheel is open. Registered like Esc, bare and with the hotkey's
+    /// modifiers; off while a Prompt's text field needs them.
+    func setArrowsEnabled(_ enabled: Bool) {
+        arrowRefs.forEach { UnregisterEventHotKey($0) }
+        arrowRefs.removeAll()
+        guard enabled else { return }
+        let mods = carbonModifiers(combo?.modifiers ?? [])
+        for arrow in Arrow.allCases {
+            for (offset, m) in [(UInt32(0), UInt32(0)), (UInt32(4), mods)] where offset == 0 || m != 0 {
+                var ref: EventHotKeyRef?
+                let id = EventHotKeyID(signature: signature, id: arrowBase + offset + arrow.rawValue)
+                if RegisterEventHotKey(UInt32(arrow.keyCode), m, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref {
+                    arrowRefs.append(ref)
+                }
+            }
+        }
+    }
+
     // MARK: - Private
 
     @discardableResult
@@ -116,6 +152,10 @@ final class HotkeyManager {
     }
 
     private func handle(id: UInt32, pressed: Bool) {
+        if id >= arrowBase, id < arrowBase + 8 {
+            if pressed, let arrow = Arrow(rawValue: (id - arrowBase) % 4) { onArrow?(arrow) }
+            return
+        }
         switch ID(rawValue: id) {
         case .main: pressed ? onPress?() : onRelease?()
         case .escape, .escapeWithModifiers: if pressed { onEscape?() }

@@ -7,15 +7,9 @@ import RingCore
 /// The wheel draws from `spec` (gradients, edges, glows, fonts). The flattened colors below are for
 /// simpler surfaces, like the prompt's text field card.
 struct Theme: Identifiable {
-    enum Backdrop {
-        /// Blurs whatever is behind the wheel.
-        case blur(NSVisualEffectView.Material, dark: Bool)
-        /// macOS 26 Liquid Glass (falls back to blur on older systems).
-        case glass(dark: Bool)
-    }
-
     let spec: ThemeSpec
-    let backdrop: Backdrop
+    /// Blur material behind the disk.
+    let material: NSVisualEffectView.Material
     /// Tint laid over the backdrop.
     let disk: Color
     /// The disk's (and hub's) outline.
@@ -46,10 +40,7 @@ struct Theme: Identifiable {
 
     init(_ spec: ThemeSpec) {
         self.spec = spec
-        switch spec.backdrop.kind {
-        case .blur: backdrop = .blur(spec.isDark ? .hudWindow : .popover, dark: spec.isDark)
-        case .glass: backdrop = .glass(dark: spec.isDark)
-        }
+        material = spec.isDark ? .hudWindow : .popover
         disk = Self.flat(spec.disk)
         stroke = Color(spec.diskEdge.border?.color ?? .clear)
         slice = Self.flat(spec.slice)
@@ -81,7 +72,7 @@ struct Theme: Identifiable {
     static let catalog: [Theme] = ThemeCatalog.builtIn.map(Theme.init)
 
     /// The original themes, from before the designed set.
-    static let originalIDs: Set = ["midnight", "daylight", "glass"]
+    static let originalIDs: Set = ["midnight", "daylight"]
 
     /// Themes as Settings offers them: designed light, designed dark, then the originals.
     static let groups: [(title: String, themes: [Theme])] = [
@@ -93,7 +84,8 @@ struct Theme: Identifiable {
     static let midnight = named("midnight")
 
     static func named(_ id: String) -> Theme {
-        catalog.first { $0.id == id } ?? catalog.first { $0.id == "midnight" } ?? catalog[0]
+        let id = ThemeCatalog.resolve(id)
+        return catalog.first { $0.id == id } ?? catalog[0]
     }
 }
 

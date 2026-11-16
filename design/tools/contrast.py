@@ -10,6 +10,8 @@ sub-action's resting fill, over a black (dark) or white (light) desktop.
 import json, math, sys
 
 themes = {t["id"]: t for t in json.load(open(sys.argv[1] if len(sys.argv) > 1 else "design/themes/themes.json"))}
+# The design's wheel area and label radius. The app scales the paint area with its deeper sub-actions
+# (ThemeContrast.paintBox), so labels land on the same part of each gradient: the ratios are the same.
 BOX, R = 720.0, 249.0
 
 # --- color math -------------------------------------------------------------

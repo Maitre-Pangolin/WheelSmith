@@ -5,10 +5,10 @@ import RingCore
 /// Where the wheel was opened, so actions can favour that display.
 struct ActionContext {
     var layout: DisplayLayout?
-    /// Index into `layout` of the display under the wheel.
+    /// Index into `layout` of the display under the wheel (and so under the cursor).
     var displayIndex: Int?
-    /// Move the app's window onto that display (the slice's "Bring here" option).
-    var bringHere = false
+    /// The slice app's windows, as listed when the wheel opened. nil when they weren't loaded yet.
+    var windows: [WindowInfo]?
 
     static let none = ActionContext()
 }
@@ -35,10 +35,9 @@ enum ActionRunner {
 
     // MARK: Apps
 
-    /// Brings the app forward, preferring its window on the wheel's display:
-    /// - "Bring here": the app's front window moves onto the wheel's display.
-    /// - Otherwise: if the app has a window on the wheel's display, that one gets focus.
-    /// - Otherwise (or without Accessibility): like a Dock click, so the last used window.
+    /// Brings the app forward with its main window moved onto the wheel's display, so it never
+    /// comes up on the display it was last on. Without Accessibility, or when the app isn't running
+    /// yet: like a Dock click.
     static func focus(_ bundleId: String, context: ActionContext = .none, completion: (() -> Void)? = nil) {
         let isRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
         guard isRunning, let layout = context.layout, let display = context.displayIndex else {
@@ -46,11 +45,15 @@ enum ActionRunner {
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
-            let windows = Windows.list(bundleId: bundleId, layout: layout).filter { !$0.isMinimized }
-            let target = context.bringHere ? windows.first : windows.first { $0.displayIndex == display }
+            // Prefer the windows listed when the wheel opened: listing again now can time out on slow
+            // apps (Electron ones such as Slack), which would fall back to a Dock click that moves nothing.
+            let listed = context.windows.flatMap { $0.isEmpty ? nil : $0 }
+                ?? Windows.list(bundleId: bundleId, layout: layout, timeout: 1)
+            let windows = listed.filter { !$0.isMinimized }
+            let target = windows.first(where: \.isMain) ?? windows.first
             var activated = false
             if let target {
-                if context.bringHere { Windows.move(target, toDisplay: display, layout: layout) }
+                Windows.move(target, toDisplay: display, layout: layout)
                 activated = Windows.raise(target)
             }
             DispatchQueue.main.async {
@@ -61,10 +64,10 @@ enum ActionRunner {
         }
     }
 
-    /// Focus one specific window (picked from the wheel's window ring).
+    /// Focus one specific window (picked from the wheel's window ring), moved onto the wheel's display.
     static func focus(window: WindowInfo, of bundleId: String, context: ActionContext) {
         DispatchQueue.global(qos: .userInitiated).async {
-            if context.bringHere, let display = context.displayIndex, let layout = context.layout {
+            if let display = context.displayIndex, let layout = context.layout {
                 Windows.move(window, toDisplay: display, layout: layout)
             }
             if !Windows.raise(window) {

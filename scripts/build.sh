@@ -15,6 +15,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/WheelSmith" "$APP/Contents/MacOS/WheelSmith"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Theme fonts (OFL), registered by the app for itself at launch.
+mkdir -p "$APP/Contents/Resources/Fonts"
+find Support/Fonts -name "*.ttf" -exec cp {} "$APP/Contents/Resources/Fonts/" \;
 
 # Signing identity, in order of preference:
 #   1. $SIGN_IDENTITY, if you set it (e.g. an "Apple Development: …" certificate)

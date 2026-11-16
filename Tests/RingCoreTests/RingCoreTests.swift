@@ -244,14 +244,15 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         }
     }
 
-    @Test func bringHereRoundTripsAndDefaultsOff() throws {
+    @Test func legacyBringHereKeyIsIgnoredAndDropped() throws {
         let c = try ConfigFile.decode(json: """
         { "items": [ { "label": "A", "action": { "type": "app", "bundleId": "a" }, "bringHere": true },
                      { "label": "B", "action": { "type": "app", "bundleId": "b" } } ] }
         """)
-        #expect(c.items[0].bringHere)
-        #expect(!c.items[1].bringHere)
-        #expect(try ConfigFile.decode(ConfigFile.encode(c)).sameContent(as: c))
+        #expect(c.items.map(\.label) == ["A", "B"])
+        let encoded = try ConfigFile.encode(c)
+        #expect(!String(decoding: encoded, as: UTF8.self).contains("bringHere"))
+        #expect(try ConfigFile.decode(encoded).sameContent(as: c))
     }
 }
 
@@ -318,9 +319,16 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
 @Suite struct ThemeCatalogTests {
     let themes = ThemeCatalog.builtIn
 
+    @Test func removedThemesMoveToTheirReplacement() {
+        #expect(ThemeCatalog.named("glass") == nil)
+        #expect(ThemeCatalog.resolve("glass") == "graphite")
+        #expect(ThemeCatalog.resolve("nope") == "midnight")
+        #expect(ThemeCatalog.resolve("aurora") == "aurora")
+    }
+
     @Test func decodesEveryBuiltInTheme() {
-        #expect(themes.count >= 32)
-        for id in ["paper", "graphite", "astrolabe", "night-city", "midnight", "daylight", "glass"] {
+        #expect(themes.count >= 31)
+        for id in ["paper", "graphite", "astrolabe", "night-city", "midnight", "daylight"] {
             #expect(ThemeCatalog.named(id) != nil, "missing \(id)")
         }
     }
@@ -330,7 +338,7 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
     }
 
     @Test func designedThemesComeInBothAppearances() {
-        let designed = themes.filter { !["midnight", "daylight", "glass"].contains($0.id) }
+        let designed = themes.filter { !["midnight", "daylight"].contains($0.id) }
         #expect(designed.filter(\.isDark).count >= 16)
         #expect(designed.filter { !$0.isDark }.count >= 13)
     }
@@ -374,5 +382,48 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         let worst = ThemeContrast.worstHoveredLabel(sunfire)
         #expect(abs(worst.ratio - 3.0) < 0.02)
         #expect(worst.angle == 0)
+    }
+}
+
+// MARK: - Browsing themes
+
+@Suite struct ThemeBrowsingTests {
+    @Test func leftAndRightStayInTheCollectionAndWrap() {
+        let dark = ThemeCatalog.collection(dark: true)
+        #expect(ThemeCatalog.neighbor(of: dark[0].id, step: 1) == dark[1].id)
+        #expect(ThemeCatalog.neighbor(of: dark[0].id, step: -1) == dark[dark.count - 1].id)
+        #expect(ThemeCatalog.neighbor(of: dark[dark.count - 1].id, step: 1) == dark[0].id)
+        for t in ThemeCatalog.builtIn {
+            let next = ThemeCatalog.named(ThemeCatalog.neighbor(of: t.id, step: 1))
+            #expect(next?.isDark == t.isDark, "\(t.id)")
+        }
+    }
+
+    @Test func everyThemeIsReachable() {
+        for dark in [false, true] {
+            let list = ThemeCatalog.collection(dark: dark)
+            var seen: Set<String> = []
+            var id = list[0].id
+            for _ in list { seen.insert(id); id = ThemeCatalog.neighbor(of: id, step: 1) }
+            #expect(seen.count == list.count)
+        }
+    }
+
+    @Test func upAndDownKeepTheFamily() {
+        #expect(ThemeCatalog.counterpart(of: "neon-sign", dark: false) == "highlighter")
+        #expect(ThemeCatalog.counterpart(of: "highlighter", dark: true) == "neon-sign")
+        #expect(ThemeCatalog.counterpart(of: "sunfire", dark: true) == "magma")
+        #expect(ThemeCatalog.counterpart(of: "polar-night", dark: false) == "glacier")
+    }
+
+    @Test func upAndDownFallBackToTheSamePlace() {
+        // Paper is the first light theme and has no family: the first dark theme.
+        #expect(ThemeCatalog.counterpart(of: "paper", dark: true) == ThemeCatalog.collection(dark: true)[0].id)
+        // Already the asked appearance: no change.
+        #expect(ThemeCatalog.counterpart(of: "paper", dark: false) == "paper")
+    }
+
+    @Test func unknownIdsLandOnACatalogTheme() {
+        #expect(ThemeCatalog.named(ThemeCatalog.neighbor(of: "nope", step: 1)) != nil)
     }
 }

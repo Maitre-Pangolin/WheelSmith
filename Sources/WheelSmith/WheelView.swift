@@ -20,8 +20,16 @@ final class WheelModel: ObservableObject {
     @Published var prompt: PromptModel?
     /// Horizontal offset of the text field's center from the wheel's center (negative: on the left).
     @Published var promptOffset: CGFloat = 0
+    /// Shown in the hub for a moment after switching themes with the arrow keys.
+    @Published var themeToast: ThemeToast?
     /// Set by the snapshot renderer: draw a solid backdrop (blur can't be captured offscreen).
     var opaqueBackdrop = false
+}
+
+/// The theme just picked with the arrow keys: its name, and which one of how many.
+struct ThemeToast: Equatable {
+    let name: String
+    let detail: String
 }
 
 /// The wheel, centered, with room on either side for a prompt's text field.
@@ -46,7 +54,8 @@ struct LiveWheelView: View {
                         openParent: model.openParent, visible: model.visible,
                         opaqueBackdrop: model.opaqueBackdrop, windows: model.windows,
                         hereDisplay: model.hereDisplay, displayCount: model.displayCount,
-                        dimmed: model.prompt != nil, settingsArmed: model.settingsArmed)
+                        dimmed: model.prompt != nil, settingsArmed: model.settingsArmed,
+                        themeToast: model.themeToast)
             if let prompt = model.prompt {
                 PromptCard(model: prompt, opaqueBackdrop: model.opaqueBackdrop)
                     .offset(x: model.promptOffset)
@@ -81,6 +90,8 @@ struct WheelCanvas: View {
     var settingsArmed = false
     /// How much of the Settings arm ring to draw, for still renders; nil fills it over a second after opening.
     var armProgress: Double? = nil
+    /// Overrides the hub's content right after an arrow key switched the theme.
+    var themeToast: ThemeToast? = nil
     var metrics = WheelMetrics.standard
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -211,29 +222,38 @@ struct WheelCanvas: View {
         .animation(fade, value: focus != nil)
     }
 
-    /// Fills around the hub over the first second; once full, letting go in the center opens Settings.
+    /// How far the Settings arm ring has filled: animated over `settingsDelay` from opening, or fixed for still renders.
+    private var armTarget: Double { armProgress ?? (settingsArmed ? 1 : (!reduceMotion && visible ? 1 : 0)) }
+    private var armFill: Animation? {
+        armProgress == nil && !reduceMotion && visible ? .linear(duration: WheelController.settingsDelay) : nil
+    }
+
+    /// Fills around the hub, like a loading bar, over the first two seconds; once full it pulses, and
+    /// letting go in the center opens Settings.
     private var armRing: some View {
-        let animated = armProgress == nil && !reduceMotion
-        let progress = armProgress ?? (settingsArmed ? 1 : (animated && visible ? 1 : 0))
-        return Circle()
-            .trim(from: 0, to: progress)
+        Circle()
+            .trim(from: 0, to: armTarget)
             .stroke(Color(spec.rail.colors.first ?? .white), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
             .shadows(spec.rail.glow)
             .rotationEffect(.degrees(-90))
             .frame(width: metrics.innerRail * 2, height: metrics.innerRail * 2)
-            .animation(animated && visible ? .timingCurve(0.4, 0, 0.2, 1, duration: WheelController.settingsDelay) : nil,
-                       value: visible)
+            .animation(armFill, value: visible)
             .animation(reduceMotion ? fade : nil, value: settingsArmed)
+            // Done: a short pulse.
+            .keyframeAnimator(initialValue: 1.0, trigger: settingsArmed) { ring, scale in
+                ring.scaleEffect(reduceMotion || !settingsArmed ? 1 : scale)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    CubicKeyframe(1.08, duration: 0.12)
+                    SpringKeyframe(1.0, duration: 0.35, spring: .bouncy)
+                }
+            }
             .opacity(hit == .center ? 1 : 0)
             .animation(fade, value: hit == .center)
     }
 
     // MARK: Disk & wedges
 
-    /// Liquid Glass themes give each sub-action its own pane of glass, like the disk.
-    private var glassSubActions: Bool {
-        if case .glass = theme.backdrop, !opaqueBackdrop { true } else { false }
-    }
 
     private var disk: some View {
         let r = circle(metrics.diskRadius)
@@ -341,9 +361,6 @@ struct WheelCanvas: View {
                                   inner: metrics.subInner, outer: metrics.subOuter, gap: 5)
         let path = shape.path(in: CGRect(x: 0, y: 0, width: size, height: size))
         return ZStack {
-            if glassSubActions {
-                GlassPane(shape: shape, dark: theme.isDark)
-            }
             PaintView(paint: spec.sub, box: paintBox, clip: path)
             PaintView(paint: spec.subHover, box: paintBox, clip: path)
                 .opacity(selected ? 1 : 0)
@@ -374,10 +391,33 @@ struct WheelCanvas: View {
         .frame(width: size, height: size)
         .animation(.easeOut(duration: 0.18), value: onSettings)
         .animation(.easeOut(duration: 0.12), value: hit)
+        .animation(.easeOut(duration: 0.12), value: themeToast)
     }
 
     @ViewBuilder
     private var hubContent: some View {
+        if let themeToast {
+            VStack(spacing: 2) {
+                Text(themeToast.detail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(theme.subtext)
+                hubLabel(themeToast.name, caption: nil)
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.left.arrow.right")
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(theme.subtext)
+                .padding(.top, 2)
+            }
+            .transition(.opacity)
+        } else {
+            hitContent
+        }
+    }
+
+    @ViewBuilder
+    private var hitContent: some View {
         switch hit {
         case .center:
             if settingsArmed {
@@ -386,7 +426,16 @@ struct WheelCanvas: View {
                     Text("Settings").font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(theme.text)
-                .transition(.opacity)
+                .transition(.asymmetric(insertion: .scale(scale: 0.7).combined(with: .opacity), removal: .opacity))
+            } else {
+                // Loading: a faint gear turns and brightens as the ring fills.
+                Image(systemName: "gearshape")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(theme.subtext)
+                    .rotationEffect(.degrees(reduceMotion ? 0 : armTarget * 120))
+                    .opacity(0.15 + 0.45 * armTarget)
+                    .animation(armFill, value: visible)
+                    .transition(.opacity)
             }
         case .item(let i) where i < items.count:
             hubLabel(items[i].label, caption: nil)
@@ -408,17 +457,17 @@ struct WheelCanvas: View {
 
     @ViewBuilder
     private func ringEntryLabel(_ entry: Ring.Entry, selected: Bool) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
             switch entry {
             case .action(let child):
-                IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 20,
+                IconView(icon: IconCache.shared.icon(for: child, isChild: true), size: 24,
                          tint: selected ? theme.onHover : theme.symbol)
             case .window(let w):
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: w.isMinimized ? "minus.rectangle" : w.isFullScreen ? "arrow.up.left.and.arrow.down.right.square" : "macwindow")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(selected ? theme.onHover : theme.symbol)
-                        .frame(width: 26, height: 20)
+                        .frame(width: 30, height: 24)
                     if displayCount > 1, let d = w.displayIndex {
                         let here = d == hereDisplay
                         Text("\(d + 1)")
@@ -431,14 +480,15 @@ struct WheelCanvas: View {
                     }
                 }
             }
-            let font = ThemeFont(spec.labelFont, defaultSize: 11, defaultWeight: .medium)
+            // Sub-actions are 1.5× the design's depth: their labels grow a little with them.
+            let font = ThemeFont(spec.labelFont, defaultSize: 11, defaultWeight: .medium, scale: 1.12)
             Text(entry.label, themed: font)
                 .font(font.font)
                 .tracking(font.tracking)
                 .foregroundStyle(selected ? theme.onHover : theme.symbol)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: 96)
+                .frame(maxWidth: 116)
                 .opacity(entry.isDimmed && !selected ? 0.6 : 1)
         }
     }
@@ -578,20 +628,6 @@ private extension Path {
     }
 }
 
-/// macOS 26 Liquid Glass in any shape; nothing on older systems.
-struct GlassPane<S: Shape>: View {
-    let shape: S
-    let dark: Bool
-
-    var body: some View {
-        if #available(macOS 26.0, *) {
-            Color.clear
-                .glassEffect(.regular, in: shape)
-                .environment(\.colorScheme, dark ? .dark : .light)
-        }
-    }
-}
-
 struct Backdrop<S: Shape>: View {
     let theme: Theme
     var opaque = false
@@ -603,18 +639,7 @@ struct Backdrop<S: Shape>: View {
         if opaque {
             shape.fill(theme.isDark ? Color(white: 0.1) : Color(white: 0.93))
         } else {
-            switch theme.backdrop {
-            case .blur(let material, let dark):
-                BlurView(material: material, dark: dark, cornerRadius: cornerRadius).clipShape(shape)
-            case .glass(let dark):
-                if #available(macOS 26.0, *) {
-                    Color.clear
-                        .glassEffect(.regular, in: shape)
-                        .environment(\.colorScheme, dark ? .dark : .light)
-                } else {
-                    BlurView(material: .hudWindow, dark: dark, cornerRadius: cornerRadius).clipShape(shape)
-                }
-            }
+            BlurView(material: theme.material, dark: theme.isDark, cornerRadius: cornerRadius).clipShape(shape)
         }
     }
 }

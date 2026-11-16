@@ -242,7 +242,8 @@ public struct FontSpec: Codable, Equatable, Sendable {
 }
 
 public struct BackdropSpec: Codable, Equatable, Sendable {
-    public enum Kind: String, Codable, Sendable { case blur, glass }
+    /// Only "blur" today: the desktop behind the disk, blurred.
+    public enum Kind: String, Codable, Sendable { case blur }
     public var kind: Kind
     public var dark: Bool
 }
@@ -300,4 +301,47 @@ public enum ThemeCatalog {
     }()
 
     public static func named(_ id: String) -> ThemeSpec? { builtIn.first { $0.id == id } }
+
+    /// Themes that were removed, and the one that replaces each.
+    public static let replaced = ["glass": "graphite"]
+
+    /// A theme id that exists: `id` itself, its replacement, or Midnight.
+    public static func resolve(_ id: String) -> String {
+        if named(id) != nil { return id }
+        if let r = replaced[id], named(r) != nil { return r }
+        return named("midnight") != nil ? "midnight" : builtIn.first?.id ?? id
+    }
+}
+
+// MARK: - Browsing
+
+extension ThemeCatalog {
+    /// The light or dark collection, in catalog order (designed themes, then the originals).
+    public static func collection(dark: Bool, in themes: [ThemeSpec] = builtIn) -> [ThemeSpec] {
+        themes.filter { $0.isDark == dark }
+    }
+
+    /// The theme `step` places along `id`'s collection, wrapping around.
+    public static func neighbor(of id: String, step: Int, in themes: [ThemeSpec] = builtIn) -> String {
+        guard let current = themes.first(where: { $0.id == id }) else { return themes.first?.id ?? id }
+        let list = collection(dark: current.isDark, in: themes)
+        guard let i = list.firstIndex(where: { $0.id == id }), !list.isEmpty else { return id }
+        let n = list.count
+        return list[((i + step) % n + n) % n].id
+    }
+
+    /// The theme to switch to in the other appearance: the same family when there is one
+    /// (Neon Sign ↔ Highlighter), else the one at the same place in the list. `id` itself when it
+    /// already has that appearance.
+    public static func counterpart(of id: String, dark: Bool, in themes: [ThemeSpec] = builtIn) -> String {
+        guard let current = themes.first(where: { $0.id == id }) else { return themes.first?.id ?? id }
+        guard current.isDark != dark else { return id }
+        let target = collection(dark: dark, in: themes)
+        guard !target.isEmpty else { return id }
+        if let family = current.family, let match = target.first(where: { $0.family == family }) {
+            return match.id
+        }
+        let i = collection(dark: current.isDark, in: themes).firstIndex { $0.id == id } ?? 0
+        return target[min(i, target.count - 1)].id
+    }
 }

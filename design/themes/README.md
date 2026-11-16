@@ -1,7 +1,7 @@
 # Theme catalog
 
 `themes.json` holds every built-in theme: the 29 from the Claude Design canvas (page "Themes", 13 light then 16
-dark), followed by the three original themes from `legacy.json` (Midnight, Daylight, Liquid Glass). The app reads it
+dark), followed by the two original themes from `legacy.json` (Midnight, Daylight). The app reads it
 through `Sources/RingCore/BuiltInThemes.swift`, a generated copy. Don't edit that file by hand.
 
 The format is `ThemeSpec` in `Sources/RingCore/ThemeSpec.swift`. Plain colors are `{"r","g","b","a"}` in 0–1. A paint

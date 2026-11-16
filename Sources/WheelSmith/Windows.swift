@@ -51,6 +51,8 @@ struct WindowInfo: Identifiable {
     let onCurrentSpace: Bool
     /// Index into the DisplayLayout it was listed with.
     let displayIndex: Int?
+    /// The app's main window: the one a Dock click would bring forward.
+    var isMain = false
 }
 
 /// Lists, raises and moves other apps' windows. Every call is synchronous IPC with the target app,
@@ -70,8 +72,11 @@ enum Windows {
         // kAXWindows only covers the Spaces currently on screen.
         let visible = (value(appElement, kAXWindowsAttribute) as? [AXUIElement]) ?? []
         let visibleIDs = Set(visible.map(windowID(of:)).filter { $0 != 0 })
-        var result = visible.compactMap {
-            info($0, pid: pid, onCurrentSpace: true, fallbackTitle: fallbackTitle, layout: layout)
+        let main = value(appElement, kAXMainWindowAttribute).map { $0 as! AXUIElement }
+        let result = visible.compactMap { w -> WindowInfo? in
+            var window = info(w, pid: pid, onCurrentSpace: true, fallbackTitle: fallbackTitle, layout: layout)
+            window?.isMain = main.map { CFEqual($0, w) } ?? false
+            return window
         }
         // Remember them: the elements stay valid once you move to another Space.
         OtherSpaces.remember(pid: pid, result.compactMap { $0.windowID == 0 ? nil : ($0.windowID, $0.element) })
@@ -128,19 +133,60 @@ enum Windows {
     }
 
     /// Moves the window onto display `index`, centered, shrunk if needed to fit its visible area.
-    /// Full-screen windows can't be moved and are left alone.
+    /// A full-screen window leaves full screen, moves, and goes full screen again on that display.
+    /// Blocks while a full-screen window animates, so call off the main thread.
     static func move(_ window: WindowInfo, toDisplay index: Int, layout: DisplayLayout) {
-        guard !window.isFullScreen, window.displayIndex != index, layout.visibleFrames.indices.contains(index) else { return }
+        guard window.displayIndex != index, layout.visibleFrames.indices.contains(index) else { return }
+        if window.isFullScreen {
+            moveFullScreen(window, toDisplay: index, layout: layout)
+        } else {
+            place(window.element, size: window.frame.size, onDisplay: index, layout: layout)
+        }
+    }
+
+    private static func place(_ element: AXUIElement, size: CGSize, onDisplay index: Int, layout: DisplayLayout) {
         let area = layout.visibleFrames[index]
-        var size = CGSize(width: min(window.frame.width, area.width), height: min(window.frame.height, area.height))
+        var size = CGSize(width: min(size.width, area.width), height: min(size.height, area.height))
         // AX positions use a top-left origin on the primary display.
         var topLeft = CGPoint(x: area.midX - size.width / 2, y: layout.primaryMaxY - (area.midY + size.height / 2))
-        setPoint(window.element, kAXPositionAttribute, &topLeft)
+        setPoint(element, kAXPositionAttribute, &topLeft)
         if let sz = AXValueCreate(.cgSize, &size) {
-            AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sz)
+            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sz)
         }
         // Some apps clamp the size while still on the old display; set the position once more.
-        setPoint(window.element, kAXPositionAttribute, &topLeft)
+        setPoint(element, kAXPositionAttribute, &topLeft)
+    }
+
+    /// A full-screen window is its own Space and can't be positioned, so: exit full screen, wait for
+    /// the animation to finish, move it, and enter full screen again (now on the target display).
+    private static func moveFullScreen(_ window: WindowInfo, toDisplay index: Int, layout: DisplayLayout) {
+        let el = window.element
+        AXUIElementSetMessagingTimeout(el, 1)
+        // Its Space has to be on screen for the window to leave full screen.
+        if !window.onCurrentSpace, window.windowID != 0, PrivateAPI.makeFront(pid: window.pid, windowID: window.windowID) {
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        AXUIElementSetAttributeValue(el, "AXFullScreen" as CFString, kCFBooleanFalse)
+        // The attribute flips before the animation ends; wait until the frame has stopped changing too.
+        var last: CGRect?
+        var stable = 0
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline, stable < 3 {
+            Thread.sleep(forTimeInterval: 0.1)
+            let current = frame(of: el, layout: layout)
+            let windowed = (value(el, "AXFullScreen") as? Bool) == false
+            stable = windowed && current != nil && current == last ? stable + 1 : 0
+            last = current
+        }
+        guard stable >= 3, let windowed = last else {
+            windowLog.debug("full-screen window didn't leave full screen in time; not moved")
+            return
+        }
+        place(el, size: windowed.size, onDisplay: index, layout: layout)
+        Thread.sleep(forTimeInterval: 0.15)
+        AXUIElementSetAttributeValue(el, "AXFullScreen" as CFString, kCFBooleanTrue)
+        // Let it settle into its new Space before the caller raises it.
+        Thread.sleep(forTimeInterval: 0.8)
     }
 
     // MARK: - Helpers

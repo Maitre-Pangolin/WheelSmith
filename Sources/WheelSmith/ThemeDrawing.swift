@@ -299,7 +299,30 @@ struct IdleEffect: ViewModifier {
 
 // MARK: - Fonts
 
-/// A theme font, falling back to a similar macOS font, then the system font, when it isn't installed.
+/// The Google Fonts the themes use (Support/Fonts), registered for this process only.
+enum ThemeFonts {
+    /// Where the fonts are: inside the app, or in the source tree when running from `swift build`.
+    static var directory: URL? {
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("Fonts"),
+           FileManager.default.fileExists(atPath: bundled.path) {
+            return bundled
+        }
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Support/Fonts")
+        return FileManager.default.fileExists(atPath: source.path) ? source : nil
+    }
+
+    /// Call once at launch, before anything is drawn.
+    static func register() {
+        guard let dir = directory,
+              let files = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil) else { return }
+        let urls = files.compactMap { $0 as? URL }.filter { $0.pathExtension == "ttf" }
+        CTFontManagerRegisterFontURLs(urls as CFArray, .process, true, nil)
+    }
+}
+
+/// A theme font, falling back to a similar macOS font, then the system font, when it isn't available.
 struct ThemeFont {
     let font: Font
     /// Letter spacing in points.
@@ -307,7 +330,7 @@ struct ThemeFont {
     let uppercase: Bool
     let shadows: [Shadow]?
 
-    /// macOS fonts close to the design's Google Fonts, used until those are bundled.
+    /// macOS fonts close to the design's Google Fonts, in case the bundled ones are missing.
     static let substitutes: [String: [String]] = [
         "Bodoni Moda": ["Bodoni 72", "Didot"],
         "Cinzel": ["Trajan Pro", "Copperplate"],
@@ -317,20 +340,22 @@ struct ThemeFont {
         "Tilt Neon": ["Arial Rounded MT Bold"],
     ]
 
-    private static let installed = Set(NSFontManager.shared.availableFontFamilies)
+    /// Read on first use, after `ThemeFonts.register()` ran at launch.
+    static let installed = Set(NSFontManager.shared.availableFontFamilies)
 
-    init(_ spec: FontSpec?, defaultSize: CGFloat, defaultWeight: Font.Weight) {
+    init(_ spec: FontSpec?, defaultSize: CGFloat, defaultWeight: Font.Weight, scale: CGFloat = 1) {
         guard let spec else {
-            font = .system(size: defaultSize, weight: defaultWeight)
+            font = .system(size: defaultSize * scale, weight: defaultWeight)
             tracking = 0; uppercase = false; shadows = nil
             return
         }
         let weight = Self.weight(spec.weight)
         let family = ([spec.family] + (Self.substitutes[spec.family] ?? [])).first { Self.installed.contains($0) }
-        var font = family.map { Font.custom($0, size: spec.size).weight(weight) } ?? .system(size: spec.size, weight: weight)
+        let size = spec.size * scale
+        var font = family.map { Font.custom($0, size: size).weight(weight) } ?? .system(size: size, weight: weight)
         if spec.italic == true { font = font.italic() }
         self.font = font
-        tracking = (spec.tracking ?? 0) * spec.size
+        tracking = (spec.tracking ?? 0) * size
         uppercase = spec.uppercase == true
         shadows = spec.shadows
     }

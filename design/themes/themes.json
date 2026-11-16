@@ -2472,36 +2472,5 @@
     ],
     "symbol": {"r": 0.15, "g": 0.15, "b": 0.15, "a": 1},
     "onHover": {"r": 1, "g": 1, "b": 1, "a": 1}
-  },
-  {
-    "id": "glass",
-    "name": "Liquid Glass",
-    "description": "macOS 26 Liquid Glass with low tints; each sub-action is its own pane of glass.",
-    "preview": "dusk",
-    "backdrop": {"kind": "glass", "dark": true},
-    "disk": {"r": 0, "g": 0, "b": 0, "a": 0.18},
-    "diskEdge": {
-      "border": {"width": 1, "color": {"r": 1, "g": 1, "b": 1, "a": 0.18}},
-      "shadows": [{"color": {"r": 0, "g": 0, "b": 0, "a": 0.3}, "x": 0, "y": 24, "blur": 72}]
-    },
-    "slice": {"r": 1, "g": 1, "b": 1, "a": 0.04},
-    "sliceHover": {"r": 1, "g": 1, "b": 1, "a": 0.16},
-    "rail": {"colors": [{"r": 1, "g": 1, "b": 1, "a": 1}], "width": 2.5, "cap": "round"},
-    "hub": {"r": 0, "g": 0, "b": 0, "a": 0.28},
-    "hubEdge": {"border": {"width": 1, "color": {"r": 1, "g": 1, "b": 1, "a": 0.18}}},
-    "hubHover": {"r": 1, "g": 1, "b": 1, "a": 0.22},
-    "text": {"r": 1, "g": 1, "b": 1, "a": 1},
-    "subtext": {"r": 1, "g": 1, "b": 1, "a": 0.65},
-    "sub": {"r": 0, "g": 0, "b": 0, "a": 0.42},
-    "subHover": [
-      {
-        "linear": {
-          "angle": 135,
-          "stops": [{"color": {"r": 1, "g": 1, "b": 1, "a": 0.92}}, {"color": {"r": 1, "g": 1, "b": 1, "a": 0.78}}]
-        }
-      }
-    ],
-    "symbol": {"r": 1, "g": 1, "b": 1, "a": 1},
-    "onHover": {"r": 0.08, "g": 0.08, "b": 0.08, "a": 1}
   }
 ]

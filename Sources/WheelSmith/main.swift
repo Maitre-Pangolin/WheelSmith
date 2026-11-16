@@ -1,6 +1,7 @@
 import AppKit
 
 let arguments = CommandLine.arguments
+ThemeFonts.register() // the themes' Google Fonts, before anything is drawn
 
 // `WheelSmith --snapshot <dir>` renders the wheel and settings UI to PNGs and exits (for design review / CI).
 if let i = arguments.firstIndex(of: "--snapshot"), i + 1 < arguments.count {

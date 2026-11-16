@@ -7,10 +7,14 @@ import Foundation
 /// the label goes, every 5°, composited over the resting sub-action and a black (dark theme) or
 /// white (light theme) desktop. Mirrors `design/tools/contrast.py`.
 public enum ThemeContrast {
-    /// Side of the box the wheel-wide paints span, as in the design.
-    public static let paintBox: Double = 720
-    /// Distance of a sub-action's label from the center.
-    public static let labelRadius: Double = 249
+    /// The design's wheel area, and where its sub-action labels sit.
+    public static let designBox: Double = 720
+    public static let designLabelRadius: Double = 249
+    /// Distance of a sub-action's label from the center: the middle of the sub-action band.
+    public static let labelRadius: Double = (WheelMetrics.standard.subInner + WheelMetrics.standard.subOuter) / 2
+    /// Side of the box the wheel-wide paints span: the design's, grown with the deeper sub-actions so
+    /// each label sits on the same part of the gradient as in the design (and keeps its contrast).
+    public static let paintBox: Double = designBox * labelRadius / designLabelRadius
 
     /// The lowest WCAG contrast of `onHover` on `subHover`, and the angle (degrees, 0 = top) where it happens.
     public static func worstHoveredLabel(_ t: ThemeSpec) -> (ratio: Double, angle: Double) {

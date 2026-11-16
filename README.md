@@ -8,7 +8,7 @@ cursor. Point at a slice and let go to jump to that app or run its action.
       Cursor         Ostraka
   Claude                 Slack
                 ( ⚙ )                ← let go in the center, past the edge, or press Esc = cancel
-                                        (center after 1 second = Settings)
+                                        (center after 2 seconds = Settings)
   iTerm                  Outlook
        Figma         Finder
             Screenshot
@@ -31,25 +31,28 @@ cursor. Point at a slice and let go to jump to that app or run its action.
     adds a tagged, high-priority todo due Friday.
   - **None:** for a slice that only groups sub-actions.
 - **Multiple windows and displays:**
-  - **Prefer this display:** an app slice focuses the app's window on the display where you
-    opened the wheel, if it has one there. Otherwise it focuses the last used window.
+  - **Comes to you:** an app slice (and any window picked from its ring) brings the window onto
+    the display where you opened the wheel, resized to fit, never back to the display it was last on.
   - **Window picker:** when an app has 2 or more windows, its outer ring lists them first (title,
     a display badge, minimized ones dimmed), followed by the sub-actions, up to 8 entries.
-  - **Bring here** (opt-in per slice): moves the app's window onto the display you're on,
-    resized to fit.
+- **Themes:** 29 designed themes (13 light, 16 dark) plus the two originals (Midnight, Daylight), picked in Settings ›
+  General. While the wheel is open, **← →** step through the light or dark themes and **↑ ↓** switch
+  to light or dark (to the same family when there is one, like Neon Sign ↔ Highlighter). The hub
+  shows the theme's name, and the choice is saved.
 - **Discover sub-actions from menus:** select a slice in Settings and click **Add from … menus**.
   WheelSmith reads that app's menu bar and lists every command with its shortcut. Search, tick
   up to 5, and each becomes a sub-action with a matching icon. See [Where sub-actions come
   from](#where-sub-actions-come-from).
 - **Screenshot** slice (default): area, full screen, or the ⌘⇧5 toolbar for video. It uses macOS's
   own shortcuts, so captures land where you've set and no extra permission is needed.
-- **Visual Settings window:** hold the wheel open for a second and let go in the center (a ⚙
+- **Visual Settings window:** hold the wheel open for two seconds (a ring fills around the center) and let go in the center (a ⚙
   appears there once it's ready; a quicker release in the center just closes the wheel), use the
   menu-bar icon (a ring with one raised segment), or open WheelSmith again (Spotlight, Finder) while it's running. Click
   slices on the live preview to edit them. Everything is also in a plain JSON file that reloads
   live.
-- **Themes:** Midnight (default), Daylight and Liquid Glass. Every color lives in `Theme.swift`, so
-  adding a theme is just adding values.
+- **Theme catalog:** every theme is data in `design/themes/themes.json` (gradients, edges, rails,
+  fonts), generated from the Claude Design canvas by `design/tools/build_themes.py`. The fonts are
+  bundled from Google Fonts (SIL Open Font License), see `Support/Fonts`.
 - **Always on:** a LaunchAgent starts WheelSmith at login and restarts it if it ever crashes. Quitting from
   the menu stays quit.
 
@@ -129,7 +132,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --scratch-pa
 | Feature | Permission |
 |---|---|
 | Hotkey, wheel, App / URL / Shell / Prompt actions | **None.** The hotkey uses Carbon `RegisterEventHotKey`, and the pointer is read by polling. |
-| **Menu** and **Shortcut** actions, **Add from menus**, window picker, prefer this display, Bring here | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
+| **Menu** and **Shortcut** actions, **Add from menus**, window picker, bringing windows to your display | **Accessibility.** You're prompted the first time; or use Settings → General → Grant… |
 
 ### Code signing
 
@@ -164,12 +167,11 @@ menu bar.
 ```jsonc
 {
   "hotkey": "option+space",          // modifiers: cmd, option, control, shift; key: a char, space, f1…f20, …
-  "theme": "midnight",               // midnight | daylight | glass
+  "theme": "midnight",               // any id in design/themes/themes.json, e.g. graphite, aurora
   "items": [                         // ≤ 8, clockwise from the top
     {
       "label": "iTerm",
       "action": { "type": "app", "bundleId": "com.googlecode.iterm2" },
-      "bringHere": true,               // optional: move its window to the display you're on
       "children": [                  // ≤ 5
         { "label": "New Tab", "icon": "sf:plus.square.on.square",
           "action": { "type": "menu", "menu": ["Shell", "New Tab"], "bundleId": "com.googlecode.iterm2" } },
@@ -235,7 +237,7 @@ Sources/
     RingLayout.swift   how many windows and sub-actions the outer ring shows
   WheelSmith/          the app
     AppDelegate.swift  menu-bar item, wiring
-    HotkeyManager.swift  Carbon hotkey press/release (+ Esc while open)
+    HotkeyManager.swift  Carbon hotkey press/release (+ Esc and arrows while open)
     WheelController.swift  overlay NSPanel, 120 Hz pointer tracking while open, runs actions on release
     WheelView.swift    SwiftUI drawing (slices, sub-ring, hub, backdrop)
     Theme.swift        all colors / materials
@@ -263,7 +265,7 @@ time. Pointer polling runs only while the wheel is open, so WheelSmith uses no C
 - **No WheelSmith icon in the menu bar.** On notched MacBooks a full menu bar pushes the left-most
   icons, the newest ones, off-screen. To fix it, turn off icons you don't need in *System
   Settings → Menu Bar*, or use a menu-bar manager. Either way, you can always reach Settings by
-  holding the wheel open for a second and letting go in the center, or by opening WheelSmith again
+  holding the wheel open for two seconds and letting go in the center, or by opening WheelSmith again
   from Spotlight. There's a Quit
   button under Settings → General.
 - **Windows on other Spaces** (other desktops, full-screen windows) are listed too, with a full-screen
@@ -273,9 +275,9 @@ time. Pointer polling runs only while the wheel is open, so WheelSmith uses no C
   others the way window switchers like AltTab do. That search is quick for most apps but can't reach
   windows of apps that have been running a long time (iTerm and Dia often): those appear once you've
   visited them after WheelSmith started. Both rely on undocumented macOS calls; if a future macOS
-  removes them, only these windows disappear from the ring. Windows can't be moved between Spaces, so
-  Bring here leaves them where they are.
-  Full-screen windows can't be moved by Bring here.
+  removes them, only these windows disappear from the ring.
+  A full-screen window is brought over too: it leaves full screen, moves, and goes full screen again
+  on your display (about a second, for the two animations).
 - **Near a screen edge** the wheel shifts inward so the slices stay visible, and the pointer moves
   to its center.
 

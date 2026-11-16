@@ -35,9 +35,12 @@ final class WheelPanel: NSPanel {
 final class WheelController {
     /// How long the wheel must be open before letting go in the center opens Settings. A quick
     /// press-and-release in the center just closes it.
-    static let settingsDelay: TimeInterval = 1.0
+    static let settingsDelay: TimeInterval = 2.0
 
     var onOpenSettings: (() -> Void)?
+    /// The theme was switched from the wheel with the arrow keys; save it.
+    var onThemeChange: ((String) -> Void)?
+    private var themeToastTimer: Timer?
 
     let model = WheelModel()
     private let panel: WheelPanel
@@ -72,14 +75,42 @@ final class WheelController {
     }
 
     func apply(config: RingConfig) {
+        let itemsChanged = config.items != model.items
         model.items = config.items
-        model.theme = Theme.named(config.theme)
-        tracker = WheelTracker(geometry: ringGeometry(windows: [:]))
+        if model.theme.id != config.theme { model.theme = Theme.named(config.theme) }
+        // A theme switched from the open wheel is saved too: keep tracking the pointer as it was.
+        if itemsChanged || !isOpen { tracker = WheelTracker(geometry: ringGeometry(windows: model.windows)) }
         requiredModifiers = NSEvent.ModifierFlags(KeyCombo(config.hotkey)?.modifiers.map(\.eventFlag) ?? [])
         IconCache.shared.preload(config.items)
         Windows.watch(bundleIds: config.items.compactMap {
             if case .app(let id) = $0.action, !id.isEmpty { id } else { nil }
         })
+    }
+
+    // MARK: Themes
+
+    /// ← → step through the light or dark themes; ↑ switches to light, ↓ to dark.
+    func arrow(_ arrow: HotkeyManager.Arrow) {
+        guard isOpen, model.prompt == nil else { return }
+        let current = model.theme.id
+        let next: String
+        switch arrow {
+        case .left: next = ThemeCatalog.neighbor(of: current, step: -1)
+        case .right: next = ThemeCatalog.neighbor(of: current, step: 1)
+        case .up: next = ThemeCatalog.counterpart(of: current, dark: false)
+        case .down: next = ThemeCatalog.counterpart(of: current, dark: true)
+        }
+        let theme = Theme.named(next)
+        let list = ThemeCatalog.collection(dark: theme.isDark)
+        let place = (list.firstIndex { $0.id == theme.id } ?? 0) + 1
+        model.themeToast = ThemeToast(name: theme.name, detail: "\(theme.isDark ? "Dark" : "Light") · \(place) of \(list.count)")
+        themeToastTimer?.invalidate()
+        themeToastTimer = Timer.scheduledTimer(withTimeInterval: 1.4, repeats: false) { [weak self] _ in
+            self?.model.themeToast = nil
+        }
+        guard next != current else { return }
+        model.theme = theme
+        onThemeChange?(next)
     }
 
     // MARK: Open / close
@@ -127,6 +158,7 @@ final class WheelController {
         }
 
         HotkeyManager.shared.setEscapeEnabled(true)
+        HotkeyManager.shared.setArrowsEnabled(true)
         let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
@@ -150,7 +182,7 @@ final class WheelController {
             break
         case .item(let i) where i < model.items.count:
             let item = model.items[i]
-            ActionRunner.run(item.action, context: context(for: item))
+            ActionRunner.run(item.action, context: context(forSlice: i))
         case .child(let p, let j) where p < model.items.count:
             let parent = model.items[p]
             let ring = Ring(item: parent, windows: model.windows[p] ?? [])
@@ -158,10 +190,10 @@ final class WheelController {
             switch ring.entries[j] {
             case .window(let window):
                 if let bundleId = parent.action.bundleId {
-                    ActionRunner.focus(window: window, of: bundleId, context: context(for: parent))
+                    ActionRunner.focus(window: window, of: bundleId, context: context(forSlice: p))
                 }
             case .action(let child):
-                ActionRunner.run(child.action, context: context(for: parent))
+                ActionRunner.run(child.action, context: context(forSlice: p))
             }
         default:
             break
@@ -190,6 +222,7 @@ final class WheelController {
     private func beginPrompt(_ item: WheelItem, parent: WheelItem?, command: String, placeholder: String?) {
         timer?.invalidate() // stop following the pointer; the highlighted sub-action stays as it is
         timer = nil
+        HotkeyManager.shared.setArrowsEnabled(false) // the text field needs them
         promptCommand = command
         let prompt = PromptModel(title: item.label, caption: parent?.label, placeholder: placeholder, theme: model.theme)
         prompt.icon = IconCache.shared.icon(for: item, isChild: parent != nil)
@@ -250,8 +283,8 @@ final class WheelController {
 
     // MARK: Windows
 
-    private func context(for item: WheelItem) -> ActionContext {
-        ActionContext(layout: layout, displayIndex: model.hereDisplay, bringHere: item.bringHere)
+    private func context(forSlice index: Int) -> ActionContext {
+        ActionContext(layout: layout, displayIndex: model.hereDisplay, windows: model.windows[index])
     }
 
     private func ringGeometry(windows: [Int: [WindowInfo]]) -> WheelGeometry {
@@ -296,6 +329,9 @@ final class WheelController {
         timer?.invalidate()
         timer = nil
         HotkeyManager.shared.setEscapeEnabled(false)
+        HotkeyManager.shared.setArrowsEnabled(false)
+        themeToastTimer?.invalidate()
+        model.themeToast = nil
         model.visible = false
         let hadPrompt = model.prompt != nil
         promptCommand = nil

@@ -105,21 +105,18 @@ public struct WheelItem: Identifiable, Equatable, Sendable {
     public var icon: String?
     public var action: Action
     public var children: [WheelItem]
-    /// When focusing this slice's app, move its window onto the display the wheel was opened on.
-    public var bringHere: Bool
 
-    public init(label: String, icon: String? = nil, action: Action, children: [WheelItem] = [],
-                bringHere: Bool = false) {
+    public init(label: String, icon: String? = nil, action: Action, children: [WheelItem] = []) {
         self.label = label
         self.icon = icon
         self.action = action
         self.children = children
-        self.bringHere = bringHere
     }
 }
 
 extension WheelItem: Codable {
-    private enum CodingKeys: String, CodingKey { case label, icon, action, children, bringHere }
+    // A legacy "bringHere" key is ignored: windows always come to the wheel's display now.
+    private enum CodingKeys: String, CodingKey { case label, icon, action, children }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -127,7 +124,6 @@ extension WheelItem: Codable {
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         action = try c.decodeIfPresent(Action.self, forKey: .action) ?? .none
         children = try c.decodeIfPresent([WheelItem].self, forKey: .children) ?? []
-        bringHere = try c.decodeIfPresent(Bool.self, forKey: .bringHere) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -136,7 +132,6 @@ extension WheelItem: Codable {
         try c.encodeIfPresent(icon, forKey: .icon)
         try c.encode(action, forKey: .action)
         if !children.isEmpty { try c.encode(children, forKey: .children) }
-        if bringHere { try c.encode(true, forKey: .bringHere) }
     }
 }
 

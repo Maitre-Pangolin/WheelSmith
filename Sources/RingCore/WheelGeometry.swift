@@ -2,7 +2,7 @@ import Foundation
 
 /// Radii (points) of the wheel's rings, from the center outwards.
 public struct WheelMetrics: Equatable, Sendable {
-    /// Center hub: releasing here closes the wheel, or opens Settings once it has been open a second.
+    /// Center hub: releasing here closes the wheel, or opens Settings once it has been open two seconds.
     public var hubRadius: Double = 64
     /// Inner rail under the hovered slice; also where the Settings arm ring fills around the hub.
     public var innerRail: Double = 76
@@ -13,15 +13,17 @@ public struct WheelMetrics: Equatable, Sendable {
     public var diskRadius: Double = 200
     /// Outer rail: just outside the hovered slice, or inside the hovered sub-action.
     public var outerRail: Double = 208
-    /// Sub-action wedges, shown around the hovered slice when it has children.
+    /// Sub-action wedges, shown around the hovered slice when it has children: 99 pt deep, 1.5× the
+    /// design's 66, so they're easier to land on.
     public var subInner: Double = 216
-    public var subOuter: Double = 282
+    public var subOuter: Double = 315
     /// Rail just outside the hovered sub-action.
-    public var subRail: Double = 290
+    public var subRail: Double = 323
     /// Forgiveness band beyond the outer edge before a release counts as "cancel".
     public var cancelSlack: Double = 18
-    /// Angular width of one sub-action (radians, about 29°).
-    public var childSpan: Double = 0.5
+    /// Angular width of one sub-action (radians, about 34°). With the depth above, the arc through a
+    /// sub-action's middle is ~1.6× its depth (the golden ratio), as wide-and-shallow as before.
+    public var childSpan: Double = 0.6
 
     public static let standard = WheelMetrics()
 

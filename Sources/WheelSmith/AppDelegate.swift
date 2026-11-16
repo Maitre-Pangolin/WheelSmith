@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.onPress = { [weak self] in self?.wheel.open() }
         hotkeys.onRelease = { [weak self] in self?.wheel.release() }
         hotkeys.onEscape = { [weak self] in self?.wheel.cancel() }
+        hotkeys.onArrow = { [weak self] arrow in self?.wheel.arrow(arrow) }
+        wheel.onThemeChange = { [weak self] id in self?.store.config.theme = id }
 
         store.$config
             .removeDuplicates()
@@ -38,6 +40,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func apply(_ config: RingConfig) {
+        // A theme that no longer exists (Liquid Glass) moves to its replacement, and is saved.
+        let theme = ThemeCatalog.resolve(config.theme)
+        if theme != config.theme {
+            store.config.theme = theme
+            return
+        }
         wheel.apply(config: config)
         if KeyCombo(config.hotkey) != HotkeyManager.shared.combo {
             HotkeyManager.shared.setHotkey(KeyCombo(config.hotkey) ?? KeyCombo("option+space"))
