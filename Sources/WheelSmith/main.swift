@@ -9,6 +9,12 @@ if let i = arguments.firstIndex(of: "--snapshot"), i + 1 < arguments.count {
     exit(0)
 }
 
+// `WheelSmith --banner <dir>` renders the README banners (light and dark) and exits.
+if let i = arguments.firstIndex(of: "--banner"), i + 1 < arguments.count {
+    MainActor.assumeIsolated { Banner.run(outputDirectory: arguments[i + 1]) }
+    exit(0)
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
