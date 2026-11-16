@@ -146,7 +146,7 @@ public struct RingConfig: Equatable, Sendable {
 
     /// e.g. "option+space". Hold it to show the wheel, release to run.
     public var hotkey: String
-    /// Theme id, see `Theme.all` in the app.
+    /// Theme id, one of `ThemeCatalog.builtIn` (design/themes/themes.json).
     public var theme: String
     /// Slices, clockwise starting at the top.
     public var items: [WheelItem]

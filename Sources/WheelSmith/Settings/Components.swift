@@ -250,15 +250,17 @@ struct GeneralPane: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
 
-            Section("Theme") {
-                HStack(spacing: 14) {
-                    ForEach(Theme.all) { theme in
-                        ThemeCard(theme: theme, items: store.config.items, selected: store.config.theme == theme.id) {
-                            store.config.theme = theme.id
+            ForEach(Theme.groups, id: \.title) { group in
+                Section(group.title) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 14)], spacing: 14) {
+                        ForEach(group.themes) { theme in
+                            ThemeCard(theme: theme, items: store.config.items, selected: store.config.theme == theme.id) {
+                                store.config.theme = theme.id
+                            }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
             }
 
             Section("System") {
@@ -325,11 +327,7 @@ struct ThemeCard: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(LinearGradient(colors: theme.isDark
-                                             ? [Color(red: 0.16, green: 0.11, blue: 0.32), Color(red: 0.03, green: 0.05, blue: 0.12)]
-                                             : [Color(red: 0.96, green: 0.92, blue: 1.0), Color(red: 0.82, green: 0.9, blue: 1.0)],
-                                             startPoint: .top, endPoint: .bottom))
+                    DesignBackground(kind: theme.spec.preview ?? (theme.isDark ? "dusk" : "bright"))
                     WheelCanvas(items: items, theme: theme, hit: .item(0), openParent: nil,
                                 opaqueBackdrop: true)
                         .scaleEffect(scale * 1.3)

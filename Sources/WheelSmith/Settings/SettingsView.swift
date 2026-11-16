@@ -111,10 +111,7 @@ struct WheelPreviewPane: View {
         let theme = Theme.named(store.config.theme)
         let state = previewState
         ZStack {
-            LinearGradient(colors: theme.isDark
-                           ? [Color(red: 0.13, green: 0.09, blue: 0.27), Color(red: 0.02, green: 0.04, blue: 0.11)]
-                           : [Color(red: 0.95, green: 0.91, blue: 0.99), Color(red: 0.84, green: 0.91, blue: 0.99)],
-                           startPoint: .top, endPoint: .bottom)
+            DesignBackground(kind: theme.spec.preview ?? (theme.isDark ? "dusk" : "bright"))
             VStack(spacing: 14) {
                 Spacer()
                 WheelCanvas(items: store.config.items, theme: theme, hit: state.hit, openParent: state.parent,

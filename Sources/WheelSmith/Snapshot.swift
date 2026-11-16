@@ -104,7 +104,48 @@ enum Snapshot {
             }
             render(view, size: Stage.size(), to: dir.appendingPathComponent(name + ".png"))
         }
+        // Every theme over the background it was designed on, with a sub-action hovered.
+        let themeDir = dir.appendingPathComponent("themes")
+        try? FileManager.default.createDirectory(at: themeDir, withIntermediateDirectories: true)
+        let outlook = config.items.firstIndex { $0.label == "Outlook" } ?? 3
+        for theme in Theme.catalog {
+            render(themeCard(theme, items: config.items, hit: .child(outlook, 1), parent: outlook),
+                   size: CGSize(width: 636, height: 636), to: themeDir.appendingPathComponent(theme.id + ".png"))
+        }
+        let columns = 8, cell: CGFloat = 300
+        let sheet = VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(stride(from: 0, to: Theme.catalog.count, by: columns)), id: \.self) { start in
+                HStack(spacing: 0) {
+                    ForEach(Theme.catalog[start..<min(start + columns, Theme.catalog.count)], id: \.id) { theme in
+                        ZStack(alignment: .bottomLeading) {
+                            themeCard(theme, items: config.items, hit: .child(outlook, 1), parent: outlook)
+                                .frame(width: 636, height: 636)
+                                .scaleEffect(cell / 636)
+                                .frame(width: cell, height: cell)
+                                .clipped()
+                            Text(theme.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(.black.opacity(0.55)))
+                                .padding(8)
+                        }
+                    }
+                }
+            }
+        }
+        let rows = (Theme.catalog.count + columns - 1) / columns
+        render(sheet, size: CGSize(width: cell * CGFloat(columns), height: cell * CGFloat(rows)),
+               to: dir.appendingPathComponent("themes.png"))
         print("Snapshots written to \(dir.path)")
+    }
+
+    /// A theme on its design background: "dusk", "bright" (sky and sun) or "window" (a light app window).
+    static func themeCard(_ theme: Theme, items: [WheelItem], hit: WheelHit, parent: Int?) -> some View {
+        ZStack {
+            DesignBackground(kind: theme.spec.preview ?? (theme.isDark ? "dusk" : "bright"))
+            WheelCanvas(items: items, theme: theme, hit: hit, openParent: parent, opaqueBackdrop: true)
+        }
     }
 
     private static func render<V: View>(_ view: V, size: CGSize, to url: URL) {
@@ -119,5 +160,40 @@ enum Snapshot {
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
         host.cacheDisplay(in: host.bounds, to: rep)
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
+    }
+}
+
+/// The backgrounds the theme boards preview on.
+struct DesignBackground: View {
+    let kind: String
+
+    var body: some View {
+        switch kind {
+        case "bright":
+            GeometryReader { g in
+                ZStack {
+                    LinearGradient(stops: [.init(color: Color(hex: 0x8CC6F3), location: 0), .init(color: Color(hex: 0xD3EAFB), location: 0.54),
+                                           .init(color: Color(hex: 0xF0D7A3), location: 0.55), .init(color: Color(hex: 0xE2BF7F), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                    Circle().fill(Color(hex: 0xFFF7D6))
+                        .frame(width: g.size.width * 0.16, height: g.size.width * 0.16)
+                        .blur(radius: 4)
+                        .position(x: g.size.width * 0.76, y: g.size.height * 0.2)
+                }
+            }
+        case "window":
+            ZStack {
+                Color(hex: 0xE8E8EB)
+                RoundedRectangle(cornerRadius: 12).fill(.white).padding(40).shadow(color: .black.opacity(0.12), radius: 25, y: 20)
+            }
+        default:
+            LinearGradient(colors: [Color(hex: 0x211743), Color(hex: 0x05091C)], startPoint: .top, endPoint: .bottom)
+        }
+    }
+}
+
+private extension Color {
+    init(hex: UInt32) {
+        self.init(.sRGB, red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 }

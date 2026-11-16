@@ -312,3 +312,67 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(top.horizontalClearance(halfHeight: 60, openParent: 0, side: 1) == m.ringOuter)
     }
 }
+
+// MARK: - Theme catalog
+
+@Suite struct ThemeCatalogTests {
+    let themes = ThemeCatalog.builtIn
+
+    @Test func decodesEveryBuiltInTheme() {
+        #expect(themes.count >= 32)
+        for id in ["paper", "graphite", "astrolabe", "night-city", "midnight", "daylight", "glass"] {
+            #expect(ThemeCatalog.named(id) != nil, "missing \(id)")
+        }
+    }
+
+    @Test func idsAreUnique() {
+        #expect(Set(themes.map(\.id)).count == themes.count)
+    }
+
+    @Test func designedThemesComeInBothAppearances() {
+        let designed = themes.filter { !["midnight", "daylight", "glass"].contains($0.id) }
+        #expect(designed.filter(\.isDark).count >= 16)
+        #expect(designed.filter { !$0.isDark }.count >= 13)
+    }
+
+    @Test func railsAreDrawable() {
+        for t in themes {
+            #expect((1...2).contains(t.rail.colors.count), "\(t.id)")
+            #expect(t.rail.width > 0, "\(t.id)")
+        }
+    }
+
+    @Test func plainColorsDecodeAsOneLayer() throws {
+        let midnight = try #require(ThemeCatalog.named("midnight"))
+        #expect(midnight.disk == Paint(RGBA(0.04, 0.04, 0.08, 0.62)))
+    }
+
+    @Test func gradientsKeepTheirGeometry() throws {
+        let lacquer = try #require(ThemeCatalog.named("lacquer"))
+        guard case .radial(let shine) = lacquer.disk.layers.first else { Issue.record("expected a radial highlight"); return }
+        #expect(shine.shape == .ellipse)
+        #expect(shine.size == [Length(0.8, .fraction), Length(0.4, .fraction)])
+        #expect(shine.center == [Length(0.5, .fraction), Length(0.06, .fraction)])
+        let astrolabe = try #require(ThemeCatalog.named("astrolabe"))
+        #expect(astrolabe.diskIdle == Idle(kind: .spin, period: 120))
+        #expect(astrolabe.hubFont?.family == "Cormorant Garamond")
+    }
+
+    /// Labels on a hovered sub-action stay readable wherever it sits on the wheel (WCAG 3:1).
+    @Test func hoveredLabelsHaveContrast() {
+        for t in themes {
+            let worst = ThemeContrast.worstHoveredLabel(t)
+            #expect(worst.ratio >= 2.995, "\(t.id): \(worst.ratio) at \(worst.angle)°")
+        }
+    }
+
+    /// The Swift check agrees with design/tools/contrast.py on known values.
+    @Test func contrastMatchesTheDesignTool() throws {
+        let graphite = try #require(ThemeCatalog.named("graphite"))
+        #expect(abs(ThemeContrast.worstHoveredLabel(graphite).ratio - 18.85) < 0.05)
+        let sunfire = try #require(ThemeCatalog.named("sunfire"))
+        let worst = ThemeContrast.worstHoveredLabel(sunfire)
+        #expect(abs(worst.ratio - 3.0) < 0.02)
+        #expect(worst.angle == 0)
+    }
+}

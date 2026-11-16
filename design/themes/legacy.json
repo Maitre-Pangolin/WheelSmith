@@ -1,0 +1,80 @@
+[
+  {
+    "id": "midnight",
+    "name": "Midnight",
+    "description": "The original dark theme: a violet-to-blue hover over a dark blur.",
+    "preview": "dusk",
+    "backdrop": { "kind": "blur", "dark": true },
+    "disk": { "r": 0.04, "g": 0.04, "b": 0.08, "a": 0.62 },
+    "diskEdge": {
+      "border": { "width": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 0.1 } },
+      "shadows": [ { "color": { "r": 0, "g": 0, "b": 0, "a": 0.45 }, "x": 0, "y": 24, "blur": 72 } ]
+    },
+    "slice": { "r": 1, "g": 1, "b": 1, "a": 0.03 },
+    "sliceHover": { "r": 0.42, "g": 0.48, "b": 1, "a": 0.18 },
+    "rail": { "colors": [ { "r": 0.55, "g": 0.62, "b": 1, "a": 1 } ], "width": 2.5, "cap": "round" },
+    "hub": { "r": 0.09, "g": 0.09, "b": 0.13, "a": 0.92 },
+    "hubEdge": { "border": { "width": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 0.1 } } },
+    "hubHover": { "r": 0.16, "g": 0.15, "b": 0.24, "a": 1 },
+    "text": { "r": 1, "g": 1, "b": 1, "a": 1 },
+    "subtext": { "r": 1, "g": 1, "b": 1, "a": 0.55 },
+    "sub": { "r": 0.07, "g": 0.07, "b": 0.11, "a": 0.9 },
+    "subHover": [ { "linear": { "angle": 135, "stops": [
+      { "color": { "r": 0.49, "g": 0.36, "b": 1, "a": 1 } },
+      { "color": { "r": 0.18, "g": 0.62, "b": 1, "a": 1 } } ] } } ],
+    "symbol": { "r": 1, "g": 1, "b": 1, "a": 0.92 },
+    "onHover": { "r": 1, "g": 1, "b": 1, "a": 1 }
+  },
+  {
+    "id": "daylight",
+    "name": "Daylight",
+    "description": "The original light theme: a warm orange-to-pink hover over a light blur.",
+    "preview": "bright",
+    "backdrop": { "kind": "blur", "dark": false },
+    "disk": { "r": 1, "g": 1, "b": 1, "a": 0.55 },
+    "diskEdge": {
+      "border": { "width": 1, "color": { "r": 0, "g": 0, "b": 0, "a": 0.08 } },
+      "shadows": [ { "color": { "r": 0, "g": 0, "b": 0, "a": 0.22 }, "x": 0, "y": 24, "blur": 72 } ]
+    },
+    "slice": { "r": 0, "g": 0, "b": 0, "a": 0.025 },
+    "sliceHover": { "r": 1, "g": 0.42, "b": 0.38, "a": 0.14 },
+    "rail": { "colors": [ { "r": 1, "g": 0.38, "b": 0.36, "a": 1 } ], "width": 2.5, "cap": "round" },
+    "hub": { "r": 1, "g": 1, "b": 1, "a": 0.92 },
+    "hubEdge": { "border": { "width": 1, "color": { "r": 0, "g": 0, "b": 0, "a": 0.08 } } },
+    "hubHover": { "r": 1, "g": 0.95, "b": 0.93, "a": 1 },
+    "text": { "r": 0.1, "g": 0.1, "b": 0.1, "a": 1 },
+    "subtext": { "r": 0.1, "g": 0.1, "b": 0.1, "a": 0.5 },
+    "sub": { "r": 1, "g": 1, "b": 1, "a": 0.94 },
+    "subHover": [ { "linear": { "angle": 135, "stops": [
+      { "color": { "r": 0.949, "g": 0.4745, "b": 0.251, "a": 1 } },
+      { "color": { "r": 0.949, "g": 0.2471, "b": 0.4078, "a": 1 } } ] } } ],
+    "symbol": { "r": 0.15, "g": 0.15, "b": 0.15, "a": 1 },
+    "onHover": { "r": 1, "g": 1, "b": 1, "a": 1 }
+  },
+  {
+    "id": "glass",
+    "name": "Liquid Glass",
+    "description": "macOS 26 Liquid Glass with low tints; each sub-action is its own pane of glass.",
+    "preview": "dusk",
+    "backdrop": { "kind": "glass", "dark": true },
+    "disk": { "r": 0, "g": 0, "b": 0, "a": 0.18 },
+    "diskEdge": {
+      "border": { "width": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 0.18 } },
+      "shadows": [ { "color": { "r": 0, "g": 0, "b": 0, "a": 0.3 }, "x": 0, "y": 24, "blur": 72 } ]
+    },
+    "slice": { "r": 1, "g": 1, "b": 1, "a": 0.04 },
+    "sliceHover": { "r": 1, "g": 1, "b": 1, "a": 0.16 },
+    "rail": { "colors": [ { "r": 1, "g": 1, "b": 1, "a": 1 } ], "width": 2.5, "cap": "round" },
+    "hub": { "r": 0, "g": 0, "b": 0, "a": 0.28 },
+    "hubEdge": { "border": { "width": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 0.18 } } },
+    "hubHover": { "r": 1, "g": 1, "b": 1, "a": 0.22 },
+    "text": { "r": 1, "g": 1, "b": 1, "a": 1 },
+    "subtext": { "r": 1, "g": 1, "b": 1, "a": 0.65 },
+    "sub": { "r": 0, "g": 0, "b": 0, "a": 0.42 },
+    "subHover": [ { "linear": { "angle": 135, "stops": [
+      { "color": { "r": 1, "g": 1, "b": 1, "a": 0.92 } },
+      { "color": { "r": 1, "g": 1, "b": 1, "a": 0.78 } } ] } } ],
+    "symbol": { "r": 1, "g": 1, "b": 1, "a": 1 },
+    "onHover": { "r": 0.08, "g": 0.08, "b": 0.08, "a": 1 }
+  }
+]

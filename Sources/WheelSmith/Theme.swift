@@ -1,7 +1,11 @@
 import SwiftUI
 import AppKit
+import RingCore
 
-/// Every color the wheel uses lives here, so new themes are just new values.
+/// A theme as the wheel draws it: built from a `ThemeSpec` in the catalog (`design/themes/themes.json`).
+///
+/// The wheel draws from `spec` (gradients, edges, glows, fonts). The flattened colors below are for
+/// simpler surfaces, like the prompt's text field card.
 struct Theme: Identifiable {
     enum Backdrop {
         /// Blurs whatever is behind the wheel.
@@ -10,11 +14,11 @@ struct Theme: Identifiable {
         case glass(dark: Bool)
     }
 
-    let id: String
-    let name: String
+    let spec: ThemeSpec
     let backdrop: Backdrop
     /// Tint laid over the backdrop.
     let disk: Color
+    /// The disk's (and hub's) outline.
     let stroke: Color
     /// A slice wedge at rest.
     let slice: Color
@@ -36,73 +40,65 @@ struct Theme: Identifiable {
     let onHover: Color
     let shadow: Color
 
-    var isDark: Bool {
-        switch backdrop {
-        case .blur(_, let dark), .glass(let dark): dark
+    var id: String { spec.id }
+    var name: String { spec.name }
+    var isDark: Bool { spec.isDark }
+
+    init(_ spec: ThemeSpec) {
+        self.spec = spec
+        switch spec.backdrop.kind {
+        case .blur: backdrop = .blur(spec.isDark ? .hudWindow : .popover, dark: spec.isDark)
+        case .glass: backdrop = .glass(dark: spec.isDark)
         }
+        disk = Self.flat(spec.disk)
+        stroke = Color(spec.diskEdge.border?.color ?? .clear)
+        slice = Self.flat(spec.slice)
+        sliceHover = Self.flat(spec.sliceHover)
+        rail = Color(spec.rail.colors.first ?? .white)
+        hub = Self.flat(spec.hub)
+        hubHover = Self.flat(spec.hubHover)
+        text = Color(spec.text)
+        subtext = Color(spec.subtext)
+        sub = Self.flat(spec.sub)
+        let hover = spec.subHover.baseColors.map(Color.init)
+        subHover = hover.count >= 2 ? [hover[0], hover[hover.count - 1]] : [hover.first ?? .white, hover.first ?? .white]
+        symbol = Color(spec.symbol)
+        onHover = Color(spec.onHover)
+        let drop = spec.diskEdge.shadows?.filter { $0.inset != true }.max { $0.blur < $1.blur }
+        shadow = Color(drop?.color ?? .clear)
     }
 
-    static let midnight = Theme(
-        id: "midnight", name: "Midnight",
-        backdrop: .blur(.hudWindow, dark: true),
-        disk: Color(red: 0.04, green: 0.04, blue: 0.08).opacity(0.62),
-        stroke: .white.opacity(0.10),
-        slice: .white.opacity(0.03),
-        sliceHover: Color(red: 0.42, green: 0.48, blue: 1.0).opacity(0.18),
-        rail: Color(red: 0.55, green: 0.62, blue: 1.0),
-        hub: Color(red: 0.09, green: 0.09, blue: 0.13).opacity(0.92),
-        hubHover: Color(red: 0.16, green: 0.15, blue: 0.24),
-        text: .white,
-        subtext: .white.opacity(0.55),
-        sub: Color(red: 0.07, green: 0.07, blue: 0.11).opacity(0.9),
-        subHover: [Color(red: 0.49, green: 0.36, blue: 1.0), Color(red: 0.18, green: 0.62, blue: 1.0)],
-        symbol: .white.opacity(0.92),
-        onHover: .white,
-        shadow: .black.opacity(0.45)
-    )
+    /// One color for a paint: itself when solid, else the average of its bottom layer's stops.
+    private static func flat(_ paint: Paint) -> Color {
+        let colors = paint.baseColors
+        guard !colors.isEmpty else { return .clear }
+        let n = Double(colors.count)
+        return Color(RGBA(colors.map(\.r).reduce(0, +) / n, colors.map(\.g).reduce(0, +) / n,
+                          colors.map(\.b).reduce(0, +) / n, colors.map(\.a).reduce(0, +) / n))
+    }
 
-    static let daylight = Theme(
-        id: "daylight", name: "Daylight",
-        backdrop: .blur(.popover, dark: false),
-        disk: .white.opacity(0.55),
-        stroke: .black.opacity(0.08),
-        slice: .black.opacity(0.025),
-        sliceHover: Color(red: 1.0, green: 0.42, blue: 0.38).opacity(0.14),
-        rail: Color(red: 1.0, green: 0.38, blue: 0.36),
-        hub: .white.opacity(0.92),
-        hubHover: Color(red: 1.0, green: 0.95, blue: 0.93),
-        text: Color(white: 0.1),
-        subtext: Color(white: 0.1).opacity(0.5),
-        sub: .white.opacity(0.94),
-        subHover: [Color(red: 1.0, green: 0.52, blue: 0.30), Color(red: 1.0, green: 0.30, blue: 0.45)],
-        symbol: Color(white: 0.15),
-        onHover: .white,
-        shadow: .black.opacity(0.22)
-    )
+    /// Every built-in theme.
+    static let catalog: [Theme] = ThemeCatalog.builtIn.map(Theme.init)
 
-    static let glass = Theme(
-        id: "glass", name: "Liquid Glass",
-        backdrop: .glass(dark: true),
-        disk: .black.opacity(0.18),
-        stroke: .white.opacity(0.18),
-        slice: .white.opacity(0.04),
-        sliceHover: .white.opacity(0.16),
-        rail: .white,
-        hub: .black.opacity(0.28),
-        hubHover: .white.opacity(0.22),
-        text: .white,
-        subtext: .white.opacity(0.65),
-        sub: .black.opacity(0.42),
-        // Near-opaque white with dark labels: a faint white tint vanished over light desktops.
-        subHover: [Color.white.opacity(0.92), Color.white.opacity(0.78)],
-        symbol: .white,
-        onHover: Color(white: 0.08),
-        shadow: .black.opacity(0.3)
-    )
+    /// The original themes, from before the designed set.
+    static let originalIDs: Set = ["midnight", "daylight", "glass"]
 
-    static let all: [Theme] = [midnight, daylight, glass]
+    /// Themes as Settings offers them: designed light, designed dark, then the originals.
+    static let groups: [(title: String, themes: [Theme])] = [
+        ("Light themes", catalog.filter { !$0.isDark && !originalIDs.contains($0.id) }),
+        ("Dark themes", catalog.filter { $0.isDark && !originalIDs.contains($0.id) }),
+        ("Original themes", catalog.filter { originalIDs.contains($0.id) }),
+    ]
+
+    static let midnight = named("midnight")
 
     static func named(_ id: String) -> Theme {
-        all.first { $0.id == id } ?? midnight
+        catalog.first { $0.id == id } ?? catalog.first { $0.id == "midnight" } ?? catalog[0]
+    }
+}
+
+extension Color {
+    init(_ c: RGBA) {
+        self.init(.sRGB, red: c.r, green: c.g, blue: c.b, opacity: c.a)
     }
 }

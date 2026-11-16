@@ -105,10 +105,22 @@ struct WheelCanvas: View {
     /// Rails change length and radius without overshoot.
     private var railResize: Animation? { reduceMotion ? nil : .smooth(duration: 0.38) }
     private var fade: Animation { .easeOut(duration: 0.16) }
+    /// Looping theme effects (rail flicker, disk spin) run only while the live wheel is open.
+    private var idleActive: Bool { visible && !reduceMotion && !opaqueBackdrop }
+
+    private var spec: ThemeSpec { theme.spec }
+    private var center: CGFloat { size / 2 }
+    /// The design's 720 pt wheel area: wedge and sub-action paints span it and are clipped to their wedge.
+    private var paintBox: CGRect {
+        let b = ThemeContrast.paintBox
+        return CGRect(x: center - b / 2, y: center - b / 2, width: b, height: b)
+    }
+    private func circle(_ r: Double) -> CGRect { CGRect(x: center - r, y: center - r, width: 2 * r, height: 2 * r) }
 
     var body: some View {
         ZStack {
             disk
+            halo
             wedges
             innerRail
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -155,13 +167,21 @@ struct WheelCanvas: View {
         outerAngle = Self.unwrap(target.outer, near: outerAngle ?? previous?.outer ?? target.outer)
     }
 
-    private var railStroke: StrokeStyle { StrokeStyle(lineWidth: 2.5, lineCap: .round) }
+    private var railStroke: StrokeStyle { spec.rail.strokeStyle }
+
+    /// A rail arc of `radius` and `span`, centered on straight up, in the rail colors and glow.
+    private func rail(_ radius: Double, span: Double) -> some View {
+        let half = radius * sin(min(span, .pi) / 2)
+        return RailArc(radius: radius, span: span)
+            .stroke(spec.rail.shading(minX: center - half, maxX: center + half, width: size), style: railStroke)
+            .shadows(spec.rail.glow)
+    }
 
     /// Under the hovered slice, just outside the hub. Hidden while a sub-action is hovered.
     private var innerRail: some View {
         let angle = innerAngle ?? railTargets(hit)?.inner ?? 0
-        return RailArc(radius: metrics.innerRail, span: max(geometry.sliceSpan - 0.24, 0.1))
-            .stroke(theme.rail, style: railStroke)
+        return rail(metrics.innerRail, span: max(geometry.sliceSpan - 0.24, 0.1))
+            .idle(spec.rail.idle, active: idleActive)
             .frame(width: size, height: size)
             .rotationEffect(.radians(angle))
             .animation(railTurn, value: angle)
@@ -175,16 +195,15 @@ struct WheelCanvas: View {
         let angle = outerAngle ?? railTargets(hit)?.outer ?? 0
         let span = onChild ? metrics.childSpan - 0.08 : max(geometry.sliceSpan - 0.1, 0.1)
         return ZStack {
-            RailArc(radius: metrics.outerRail, span: span)
-                .stroke(theme.rail, style: railStroke)
+            rail(metrics.outerRail, span: span)
                 .animation(railResize, value: span)
-            RailArc(radius: metrics.subRail, span: metrics.childSpan - 0.08)
-                .stroke(theme.rail, style: railStroke)
+            rail(metrics.subRail, span: metrics.childSpan - 0.08)
                 .frame(width: size, height: size)
                 .scaleEffect(onChild ? 1 : metrics.outerRail / metrics.subRail)
                 .opacity(onChild ? 1 : 0)
                 .animation(railResize ?? fade, value: onChild)
         }
+        .idle(spec.rail.idle, active: idleActive)
         .frame(width: size, height: size)
         .rotationEffect(.radians(angle))
         .animation(railTurn, value: angle)
@@ -198,7 +217,8 @@ struct WheelCanvas: View {
         let progress = armProgress ?? (settingsArmed ? 1 : (animated && visible ? 1 : 0))
         return Circle()
             .trim(from: 0, to: progress)
-            .stroke(theme.rail, style: railStroke)
+            .stroke(Color(spec.rail.colors.first ?? .white), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            .shadows(spec.rail.glow)
             .rotationEffect(.degrees(-90))
             .frame(width: metrics.innerRail * 2, height: metrics.innerRail * 2)
             .animation(animated && visible ? .timingCurve(0.4, 0, 0.2, 1, duration: WheelController.settingsDelay) : nil,
@@ -216,22 +236,49 @@ struct WheelCanvas: View {
     }
 
     private var disk: some View {
-        let d = metrics.diskRadius * 2
+        let r = circle(metrics.diskRadius)
         return ZStack {
+            OuterShadows(shadows: spec.diskEdge.shadows ?? [], circle: r)
             Backdrop(theme: theme, opaque: opaqueBackdrop, shape: Circle())
-            Circle().fill(theme.disk)
-            Circle().strokeBorder(theme.stroke, lineWidth: 1)
+                .frame(width: r.width, height: r.height)
+            PaintView(paint: spec.disk, box: r, clip: Path(ellipseIn: r))
+                .spin(spec.diskIdle, active: idleActive)
+            InnerEdge(edge: spec.diskEdge, circle: r)
         }
-        .frame(width: d, height: d)
-        .shadow(color: theme.shadow, radius: 36, y: 24)
+        .frame(width: size, height: size)
+    }
+
+    /// A soft glow under the hovered slice, turning with the inner rail.
+    @ViewBuilder
+    private var halo: some View {
+        if let halo = spec.halo {
+            let angle = innerAngle ?? railTargets(hit)?.inner ?? 0
+            Circle()
+                .fill(Color(halo))
+                .frame(width: 180, height: 180)
+                .blur(radius: 30)
+                .offset(y: -150)
+                .frame(width: size, height: size)
+                .rotationEffect(.radians(angle))
+                .animation(railTurn, value: angle)
+                .opacity(focus != nil && !onChild ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: focus != nil && !onChild)
+        }
+    }
+
+    private func wedgePath(_ i: Int) -> Path {
+        AnnularSector(center: geometry.sliceCenter(i), span: items.count == 1 ? 2 * .pi : geometry.sliceSpan,
+                      inner: metrics.ringInner, outer: metrics.ringOuter)
+            .path(in: CGRect(x: 0, y: 0, width: size, height: size))
     }
 
     private var wedges: some View {
         ZStack {
             ForEach(items.indices, id: \.self) { i in
-                AnnularSector(center: geometry.sliceCenter(i), span: items.count == 1 ? 2 * .pi : geometry.sliceSpan,
-                              inner: metrics.ringInner, outer: metrics.ringOuter)
-                    .fill(focus == i ? theme.sliceHover : theme.slice)
+                let path = wedgePath(i)
+                PaintView(paint: spec.slice, box: paintBox, clip: path)
+                PaintView(paint: spec.sliceHover, box: paintBox, clip: path)
+                    .opacity(focus == i ? 1 : 0)
             }
         }
         .frame(width: size, height: size)
@@ -292,13 +339,13 @@ struct WheelCanvas: View {
         let selected = hit == .child(sub.parent, sub.index)
         let shape = AnnularSector(center: sub.angle, span: metrics.childSpan,
                                   inner: metrics.subInner, outer: metrics.subOuter, gap: 5)
+        let path = shape.path(in: CGRect(x: 0, y: 0, width: size, height: size))
         return ZStack {
             if glassSubActions {
                 GlassPane(shape: shape, dark: theme.isDark)
             }
-            shape.fill(theme.sub)
-                .shadow(color: theme.shadow.opacity(glassSubActions ? 0 : 0.5), radius: 8)
-            shape.fill(LinearGradient(colors: theme.subHover, startPoint: .topLeading, endPoint: .bottomTrailing))
+            PaintView(paint: spec.sub, box: paintBox, clip: path)
+            PaintView(paint: spec.subHover, box: paintBox, clip: path)
                 .opacity(selected ? 1 : 0)
             ringEntryLabel(sub.entry, selected: selected)
                 .position(Self.point(sub.angle, (metrics.subInner + metrics.subOuter) / 2, size))
@@ -313,14 +360,18 @@ struct WheelCanvas: View {
         let d = metrics.hubRadius * 2
         // Letting go in the center closes the wheel, unless it has been open long enough to arm Settings.
         let onSettings = settingsArmed && hit == .center
+        let r = circle(metrics.hubRadius)
         return ZStack {
-            Circle().fill(onSettings ? theme.hubHover : theme.hub)
-            Circle().strokeBorder(theme.stroke, lineWidth: 1)
+            OuterShadows(shadows: spec.hubEdge.shadows ?? [], circle: r)
+            PaintView(paint: spec.hub, box: r, clip: Path(ellipseIn: r))
+            PaintView(paint: spec.hubHover, box: r, clip: Path(ellipseIn: r))
+                .opacity(onSettings ? 1 : 0)
+            InnerEdge(edge: spec.hubEdge, circle: r)
             hubContent
                 .padding(12)
                 .frame(width: d, height: d)
         }
-        .frame(width: d, height: d)
+        .frame(width: size, height: size)
         .animation(.easeOut(duration: 0.18), value: onSettings)
         .animation(.easeOut(duration: 0.12), value: hit)
     }
@@ -380,8 +431,10 @@ struct WheelCanvas: View {
                     }
                 }
             }
-            Text(entry.label)
-                .font(.system(size: 11, weight: .medium))
+            let font = ThemeFont(spec.labelFont, defaultSize: 11, defaultWeight: .medium)
+            Text(entry.label, themed: font)
+                .font(font.font)
+                .tracking(font.tracking)
                 .foregroundStyle(selected ? theme.onHover : theme.symbol)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -403,10 +456,12 @@ struct WheelCanvas: View {
                     .foregroundStyle(theme.subtext)
                     .lineLimit(1)
             }
-            Text(title)
-                .font(.system(size: 15, weight: .medium))
-                .tracking(-0.15)
+            let font = ThemeFont(spec.hubFont, defaultSize: 15, defaultWeight: .medium)
+            Text(title, themed: font)
+                .font(font.font)
+                .tracking(spec.hubFont == nil ? -0.15 : font.tracking)
                 .foregroundStyle(theme.text)
+                .shadows(font.shadows)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
