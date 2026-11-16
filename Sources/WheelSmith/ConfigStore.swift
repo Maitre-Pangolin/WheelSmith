@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Combine
 import RingCore
 
@@ -15,7 +15,7 @@ final class ConfigStore: ObservableObject {
 
     init(url: URL = ConfigFile.defaultURL) {
         self.url = url
-        config = DefaultConfig.config
+        config = Self.defaultConfig
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if let data = try? Data(contentsOf: url) {
             do {
@@ -38,7 +38,14 @@ final class ConfigStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        config = DefaultConfig.config
+        config = Self.defaultConfig
+    }
+
+    /// The built-in wheel, minus apps this Mac doesn't have.
+    static var defaultConfig: RingConfig {
+        DefaultConfig.keepingInstalled(DefaultConfig.config) {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        }
     }
 
     private func write(_ config: RingConfig) {

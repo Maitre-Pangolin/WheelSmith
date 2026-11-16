@@ -131,10 +131,64 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
 @Suite struct ConfigTests {
     @Test func defaultConfigRoundTrips() throws {
         let config = DefaultConfig.config
+        #expect(config.items.count <= RingConfig.maxItems)
+        #expect(config.items.allSatisfy { $0.children.count <= RingConfig.maxChildren })
+        let decoded = try ConfigFile.decode(ConfigFile.encode(config))
+        #expect(decoded.sameContent(as: config))
+        #expect(decoded.items[0].label == "Safari")
+    }
+
+    /// The first-run wheel only uses apps that come with macOS.
+    @Test func defaultConfigUsesOnlyAppleApps() {
+        let ids = DefaultConfig.config.items.flatMap { [$0] + $0.children }.compactMap(\.action.bundleId)
+        #expect(!ids.isEmpty)
+        #expect(ids.allSatisfy { $0.hasPrefix("com.apple.") })
+    }
+
+    @Test func keepingInstalledDropsMissingApps() {
+        let config = RingConfig(items: [
+            WheelItem(label: "Kept", action: .app(bundleId: "a"), children: [
+                WheelItem(label: "Same app", action: .keys("cmd+n", bundleId: "a")),
+                WheelItem(label: "Other app", action: .keys("cmd+n", bundleId: "missing")),
+                WheelItem(label: "No app", action: .url("~", bundleId: nil)),
+            ]),
+            WheelItem(label: "Gone", action: .app(bundleId: "missing"), children: [
+                WheelItem(label: "Child", action: .shell("true")),
+            ]),
+            WheelItem(label: "Shell", action: .shell("true")),
+        ])
+        let kept = DefaultConfig.keepingInstalled(config) { $0 != "missing" }
+        #expect(kept.items.map(\.label) == ["Kept", "Shell"])
+        #expect(kept.items[0].children.map(\.label) == ["Same app", "No app"])
+    }
+
+    @Test func showcaseRoundTrips() throws {
+        let config = DefaultConfig.showcase
         #expect(config.items.count == RingConfig.maxItems)
         let decoded = try ConfigFile.decode(ConfigFile.encode(config))
         #expect(decoded.sameContent(as: config))
-        #expect(decoded.items[0].children.count == 2)
+    }
+
+    /// examples/config.json is the showcase wheel, encoded. Regenerate it if this fails.
+    @Test func exampleFileMatchesShowcase() throws {
+        // Tests/RingCoreTests/RingCoreTests.swift → repo root.
+        let root = String(#filePath).split(separator: "/", omittingEmptySubsequences: false).dropLast(3).joined(separator: "/")
+        let json = try #require(readFile(root + "/examples/config.json"))
+        let example = try ConfigFile.decode(json: json)
+        #expect(example.sameContent(as: DefaultConfig.showcase))
+    }
+
+    private func readFile(_ path: String) -> String? {
+        guard let file = fopen(path, "r") else { return nil }
+        defer { fclose(file) }
+        var bytes: [UInt8] = []
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let n = fread(&buffer, 1, buffer.count, file)
+            if n == 0 { break }
+            bytes += buffer[..<n]
+        }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     @Test func handWrittenJSON() throws {
@@ -282,8 +336,8 @@ private func point(angleDegrees: Double, radius: Double) -> (Double, Double) {
         #expect(Action.prompt(command: "echo", placeholder: "x").converted(to: .shell) == .shell("echo"))
     }
 
-    @Test func defaultOstrakaSliceHasQuickTodo() {
-        let ostraka = DefaultConfig.config.items.first { $0.label == "Ostraka" }
+    @Test func showcaseOstrakaSliceHasQuickTodo() {
+        let ostraka = DefaultConfig.showcase.items.first { $0.label == "Ostraka" }
         #expect(ostraka?.children.first?.action.kind == .prompt)
     }
 }

@@ -10,7 +10,7 @@ enum Snapshot {
         let dir = URL(fileURLWithPath: outputDirectory)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         _ = NSApplication.shared
-        let config = DefaultConfig.config
+        let config = DefaultConfig.showcase
         IconCache.shared.preload(config.items)
 
         let states: [(String, String, WheelHit, Int?, Bool)] = [

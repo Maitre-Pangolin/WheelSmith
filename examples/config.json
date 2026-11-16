@@ -1,0 +1,253 @@
+{
+  "hotkey" : "option+space",
+  "items" : [
+    {
+      "action" : {
+        "bundleId" : "company.thebrowser.dia",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "bundleId" : "company.thebrowser.dia",
+            "keys" : "cmd+t",
+            "type" : "keys"
+          },
+          "icon" : "sf:plus.square.on.square",
+          "label" : "New tab"
+        },
+        {
+          "action" : {
+            "bundleId" : "company.thebrowser.dia",
+            "keys" : "cmd+n",
+            "type" : "keys"
+          },
+          "icon" : "sf:macwindow.badge.plus",
+          "label" : "New window"
+        }
+      ],
+      "label" : "Dia"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.google.Chrome.app.dekblognmjndkkfcbifaddddgaplkgbn",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "command" : "ostraka todo add \"$1\"",
+            "placeholder" : "Review the board #tag *high ^fri",
+            "type" : "prompt"
+          },
+          "icon" : "sf:checklist",
+          "label" : "Quick todo"
+        }
+      ],
+      "label" : "Ostraka"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.tinyspeck.slackmacgap",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "bundleId" : "com.tinyspeck.slackmacgap",
+            "keys" : "cmd+k",
+            "type" : "keys"
+          },
+          "icon" : "sf:magnifyingglass",
+          "label" : "Jump to…"
+        },
+        {
+          "action" : {
+            "bundleId" : "com.tinyspeck.slackmacgap",
+            "keys" : "cmd+shift+t",
+            "type" : "keys"
+          },
+          "icon" : "sf:bubble.left.and.bubble.right",
+          "label" : "Threads"
+        }
+      ],
+      "label" : "Slack"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.microsoft.Outlook",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "bundleId" : "com.microsoft.Outlook",
+            "keys" : "cmd+n",
+            "type" : "keys"
+          },
+          "icon" : "sf:square.and.pencil",
+          "label" : "New email"
+        },
+        {
+          "action" : {
+            "bundleId" : "com.microsoft.Outlook",
+            "keys" : "cmd+1",
+            "type" : "keys"
+          },
+          "icon" : "sf:tray",
+          "label" : "Mail"
+        },
+        {
+          "action" : {
+            "bundleId" : "com.microsoft.Outlook",
+            "keys" : "cmd+2",
+            "type" : "keys"
+          },
+          "icon" : "sf:calendar",
+          "label" : "Calendar"
+        }
+      ],
+      "label" : "Outlook"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.apple.finder",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "type" : "url",
+            "url" : "~/Downloads"
+          },
+          "icon" : "sf:arrow.down.circle",
+          "label" : "Downloads"
+        },
+        {
+          "action" : {
+            "type" : "url",
+            "url" : "~"
+          },
+          "icon" : "sf:house",
+          "label" : "Home"
+        }
+      ],
+      "label" : "Finder"
+    },
+    {
+      "action" : {
+        "keys" : "cmd+shift+4",
+        "type" : "keys"
+      },
+      "children" : [
+        {
+          "action" : {
+            "keys" : "cmd+shift+4",
+            "type" : "keys"
+          },
+          "icon" : "sf:rectangle.dashed",
+          "label" : "Zone"
+        },
+        {
+          "action" : {
+            "keys" : "cmd+shift+3",
+            "type" : "keys"
+          },
+          "icon" : "sf:display",
+          "label" : "Full screen"
+        },
+        {
+          "action" : {
+            "keys" : "cmd+shift+5",
+            "type" : "keys"
+          },
+          "icon" : "sf:record.circle",
+          "label" : "Video"
+        }
+      ],
+      "icon" : "sf:camera.viewfinder",
+      "label" : "Screenshot"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.figma.Desktop",
+        "type" : "app"
+      },
+      "label" : "Figma"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.googlecode.iterm2",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "bundleId" : "com.googlecode.iterm2",
+            "keys" : "cmd+n",
+            "type" : "keys"
+          },
+          "icon" : "sf:macwindow.badge.plus",
+          "label" : "New window"
+        },
+        {
+          "action" : {
+            "bundleId" : "com.googlecode.iterm2",
+            "keys" : "cmd+t",
+            "type" : "keys"
+          },
+          "icon" : "sf:plus.square.on.square",
+          "label" : "New tab"
+        }
+      ],
+      "label" : "iTerm"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.anthropic.claudefordesktop",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "bundleId" : "com.anthropic.claudefordesktop",
+            "keys" : "cmd+n",
+            "type" : "keys"
+          },
+          "icon" : "sf:plus.bubble",
+          "label" : "New chat"
+        }
+      ],
+      "label" : "Claude"
+    },
+    {
+      "action" : {
+        "bundleId" : "com.todesktop.230313mzl4w4u92",
+        "type" : "app"
+      },
+      "children" : [
+        {
+          "action" : {
+            "bundleId" : "com.todesktop.230313mzl4w4u92",
+            "keys" : "cmd+shift+n",
+            "type" : "keys"
+          },
+          "icon" : "sf:macwindow.badge.plus",
+          "label" : "New window"
+        },
+        {
+          "action" : {
+            "bundleId" : "com.todesktop.230313mzl4w4u92",
+            "keys" : "ctrl+r",
+            "type" : "keys"
+          },
+          "icon" : "sf:clock.arrow.circlepath",
+          "label" : "Open recent"
+        }
+      ],
+      "label" : "Cursor"
+    }
+  ],
+  "theme" : "midnight",
+  "version" : 1
+}

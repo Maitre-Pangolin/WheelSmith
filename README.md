@@ -212,6 +212,12 @@ Settings writes to `~/.config/wheelsmith/config.json`. You can also edit the fil
 as soon as you save. If the JSON is invalid, WheelSmith keeps the previous config and shows a ⚠︎ in the
 menu bar.
 
+On first launch, when there's no config yet, WheelSmith writes a starter wheel built from apps that
+come with macOS: Safari, Mail, Calendar, Finder, Screenshot, Notes, Terminal and System Settings.
+Any of those your Mac doesn't have are left out. **Settings → Reset** brings that wheel back.
+For a full ten-slice wheel with third-party apps, sub-actions and a prompt, see
+[`examples/config.json`](examples/config.json); copy it over your config to try it.
+
 ```jsonc
 {
   "hotkey": "option+space",          // modifiers: cmd, option, control, shift; key: a char, space, f1…f20, …
